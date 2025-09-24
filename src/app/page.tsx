@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 export default function Home() {
   return (
@@ -9,8 +9,8 @@ export default function Home() {
             Welcome to Karma
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            A lightweight recognition platform where employees can share appreciation
-            and foster a culture of gratitude in the workplace.
+            A lightweight recognition platform where employees can share
+            appreciation and foster a culture of gratitude in the workplace.
           </p>
         </div>
 
@@ -20,7 +20,8 @@ export default function Home() {
               For New Users
             </h2>
             <p className="text-gray-600 mb-6">
-              Join your organization's recognition program and start giving and receiving karma points.
+              Join your organization`&apos;`s recognition program and start
+              giving and receiving karma points.
             </p>
             <Link
               href="/login"
@@ -35,7 +36,8 @@ export default function Home() {
               For Existing Users
             </h2>
             <p className="text-gray-600 mb-6">
-              Access your dashboard to view balances, give recognition, and track your progress.
+              Access your dashboard to view balances, give recognition, and
+              track your progress.
             </p>
             <Link
               href="/home"
@@ -48,7 +50,8 @@ export default function Home() {
 
         <div className="text-center">
           <p className="text-gray-500">
-            This is a development preview. Full authentication and features coming soon.
+            This is a development preview. Full authentication and features
+            coming soon.
           </p>
         </div>
       </div>
