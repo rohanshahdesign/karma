@@ -28,8 +28,8 @@ This document outlines the implementation tasks in dependency order with status 
 | 1.3 | Set up ShadCN Components | - Install ShadCN CLI and configure<br>- Set up component library structure<br>- Install core UI components (Button, Card, Dialog, etc.) | 1.2 | 🟢 Done | Developer | 2 hours | High | Use Radix UI as base components |
 | 1.4 | Create Project Structure | - Set up src/ folder organization<br>- Create component directories<br>- Set up lib/ utilities folder<br>- Configure TypeScript paths | 1.1 | 🟢 Done | Developer | 1 hour | High | Follow Next.js App Router conventions |
 
-| 2.1 | Create Environment Files | - Create .env.local template<br>- Set up .env.example for documentation<br>- Configure .gitignore for sensitive files | 1.1 | 🔴 To-Do | Developer | 30 min | High | Include all required environment variables |
-| 2.2 | Set up Development Environment | - Configure VS Code settings<br>- Set up Prettier and ESLint<br>- Configure development scripts | 2.1 | 🔴 To-Do | Developer | 1 hour | Medium | Ensure consistent code formatting |
+| 2.1 | Create Environment Files | - Create .env.local template<br>- Set up .env.example for documentation<br>- Configure .gitignore for sensitive files | 1.1 | 🟢 Done | Developer | 30 min | High | Include all required environment variables |
+| 2.2 | Set up Development Environment | - Configure VS Code settings<br>- Set up Prettier and ESLint<br>- Configure development scripts | 2.1 | 🟢 Done | Developer | 1 hour | Medium | Ensure consistent code formatting |
 | 2.3 | Manual Environment Setup | - Create Supabase project<br>- Set up Google OAuth credentials<br>- Configure Vercel project | None | 🔴 To-Do | User | 2-3 hours | High | Requires manual setup of external services |
 
 | 3.1 | Set up Supabase Project | - Create Supabase project and database<br>- Configure database settings<br>- Set up storage buckets | 2.3 | 🔴 To-Do | User | 1 hour | High | Choose appropriate region and plan |
