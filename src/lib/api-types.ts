@@ -1,14 +1,14 @@
 // API-specific types for Next.js API routes
 // Extends base types with API-specific functionality
 
-import { ApiResponse, PaginatedResponse, QueryConfig } from './types';
+import { ApiResponse, PaginatedResponse, Profile, Workspace, Transaction, WorkspaceMember, UserStats, WorkspaceStats, TransactionWithProfiles } from './types';
 
 // ============================================================================
 // API ROUTE TYPES
 // ============================================================================
 
-export interface ApiRouteHandler<T = any> {
-  (req: Request, context?: any): Promise<Response>;
+export interface ApiRouteHandler {
+  (req: Request, context?: ApiRouteContext): Promise<Response>;
 }
 
 export interface ApiRouteContext {
@@ -24,7 +24,7 @@ export interface AuthenticatedRequest extends Request {
   user: {
     id: string;
     email: string;
-    profile: any;
+    profile: Profile;
   };
 }
 
@@ -79,21 +79,20 @@ export interface DemoteUserRequest {
 
 export interface WorkspaceResponse extends ApiResponse {
   data: {
-    workspace: any;
-    profile: any;
+    workspace: Workspace;
+    profile: Profile;
   };
 }
 
 export interface TransactionResponse extends ApiResponse {
   data: {
-    transaction: any;
+    transaction: Transaction;
     sender_balance: number;
     receiver_balance: number;
   };
 }
 
-export interface MemberListResponse extends PaginatedResponse {
-  data: any[];
+export interface MemberListResponse extends PaginatedResponse<WorkspaceMember> {
   filters: {
     role?: string;
     department?: string;
@@ -102,8 +101,7 @@ export interface MemberListResponse extends PaginatedResponse {
   };
 }
 
-export interface TransactionListResponse extends PaginatedResponse {
-  data: any[];
+export interface TransactionListResponse extends PaginatedResponse<TransactionWithProfiles> {
   filters: {
     date_from?: string;
     date_to?: string;
@@ -116,17 +114,32 @@ export interface TransactionListResponse extends PaginatedResponse {
 
 export interface DashboardResponse extends ApiResponse {
   data: {
-    user_stats: any;
-    workspace_stats: any;
-    recent_transactions: any[];
-    top_receivers: any[];
-    top_senders: any[];
+    user_stats: UserStats;
+    workspace_stats: WorkspaceStats;
+    recent_transactions: TransactionWithProfiles[];
+    top_receivers: Array<{
+      profile: Profile;
+      total_received: number;
+      transaction_count: number;
+    }>;
+    top_senders: Array<{
+      profile: Profile;
+      total_sent: number;
+      transaction_count: number;
+    }>;
   };
 }
 
 export interface LeaderboardResponse extends ApiResponse {
   data: {
-    entries: any[];
+    entries: Array<{
+      rank: number;
+      profile: Profile;
+      total_received: number;
+      total_sent: number;
+      net_karma: number;
+      transaction_count: number;
+    }>;
     period: 'week' | 'month' | 'all_time';
     total_participants: number;
   };
@@ -192,9 +205,9 @@ export interface ApiEndpoint {
   handler: ApiRouteHandler;
   middleware?: Array<(req: Request) => Promise<Request>>;
   validation?: {
-    body?: any;
-    query?: any;
-    params?: any;
+    body?: Record<string, unknown>;
+    query?: Record<string, unknown>;
+    params?: Record<string, unknown>;
   };
 }
 
@@ -226,7 +239,7 @@ export interface PermissionMiddleware {
 }
 
 export interface ValidationMiddleware {
-  (schema: any): (req: Request) => Promise<Request>;
+  (schema: Record<string, unknown>): (req: Request) => Promise<Request>;
 }
 
 export interface RateLimitMiddleware {
@@ -242,7 +255,7 @@ export interface RateLimitMiddleware {
 export interface DatabaseQuery {
   table: string;
   select?: string[];
-  where?: Record<string, any>;
+  where?: Record<string, unknown>;
   orderBy?: Array<{ column: string; direction: 'asc' | 'desc' }>;
   limit?: number;
   offset?: number;
@@ -256,7 +269,7 @@ export interface DatabaseQuery {
 export interface QueryBuilder {
   select(columns: string[]): QueryBuilder;
   from(table: string): QueryBuilder;
-  where(condition: Record<string, any>): QueryBuilder;
+  where(condition: Record<string, unknown>): QueryBuilder;
   orderBy(column: string, direction?: 'asc' | 'desc'): QueryBuilder;
   limit(count: number): QueryBuilder;
   offset(count: number): QueryBuilder;
@@ -311,43 +324,79 @@ export type HttpStatus =
 export interface ApiError extends Error {
   status: HttpStatus;
   code: string;
-  details?: any;
+  details?: unknown;
 }
 
-export interface ApiSuccess<T = any> {
+export interface ApiSuccess<T = unknown> {
   data: T;
   message?: string;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 }
 
 // ============================================================================
 // TYPE GUARDS
 // ============================================================================
 
-export function isApiError(error: any): error is ApiError {
-  return (
-    error && typeof error.status === 'number' && typeof error.code === 'string'
+export function isApiError(error: unknown): error is ApiError {
+  return Boolean(
+    error && 
+    typeof error === 'object' && 
+    error !== null &&
+    'status' in error && 
+    'code' in error &&
+    typeof (error as Record<string, unknown>).status === 'number' &&
+    typeof (error as Record<string, unknown>).code === 'string'
   );
 }
 
 export function isValidationError(
-  error: any
+  error: unknown
 ): error is ValidationErrorResponse {
-  return (
-    error && error.code === 'VALIDATION_ERROR' && Array.isArray(error.details)
+  return Boolean(
+    error && 
+    typeof error === 'object' && 
+    error !== null &&
+    'code' in error && 
+    'details' in error &&
+    (error as Record<string, unknown>).code === 'VALIDATION_ERROR' && 
+    Array.isArray((error as Record<string, unknown>).details)
   );
 }
 
-export function isUnauthorizedError(error: any): error is UnauthorizedResponse {
-  return error && error.code === 'UNAUTHORIZED' && error.status === 401;
+export function isUnauthorizedError(error: unknown): error is UnauthorizedResponse {
+  return Boolean(
+    error && 
+    typeof error === 'object' && 
+    error !== null &&
+    'code' in error && 
+    'status' in error &&
+    (error as Record<string, unknown>).code === 'UNAUTHORIZED' && 
+    (error as Record<string, unknown>).status === 401
+  );
 }
 
-export function isForbiddenError(error: any): error is ForbiddenResponse {
-  return error && error.code === 'FORBIDDEN' && error.status === 403;
+export function isForbiddenError(error: unknown): error is ForbiddenResponse {
+  return Boolean(
+    error && 
+    typeof error === 'object' && 
+    error !== null &&
+    'code' in error && 
+    'status' in error &&
+    (error as Record<string, unknown>).code === 'FORBIDDEN' && 
+    (error as Record<string, unknown>).status === 403
+  );
 }
 
-export function isNotFoundError(error: any): error is NotFoundResponse {
-  return error && error.code === 'NOT_FOUND' && error.status === 404;
+export function isNotFoundError(error: unknown): error is NotFoundResponse {
+  return Boolean(
+    error && 
+    typeof error === 'object' && 
+    error !== null &&
+    'code' in error && 
+    'status' in error &&
+    (error as Record<string, unknown>).code === 'NOT_FOUND' && 
+    (error as Record<string, unknown>).status === 404
+  );
 }
 
 // ============================================================================
@@ -377,6 +426,7 @@ export const ERROR_CODES = {
   FORBIDDEN: 'FORBIDDEN',
   NOT_FOUND: 'NOT_FOUND',
   CONFLICT: 'CONFLICT',
+  BAD_REQUEST: 'BAD_REQUEST',
   RATE_LIMITED: 'RATE_LIMITED',
   INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
   DATABASE_ERROR: 'DATABASE_ERROR',

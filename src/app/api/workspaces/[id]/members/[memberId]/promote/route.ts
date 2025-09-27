@@ -1,9 +1,7 @@
 // API route for promoting members to admin
 // POST /api/workspaces/[id]/members/[memberId]/promote - Promote member to admin
 
-import { NextRequest } from 'next/server';
 import {
-  withAuth,
   withPermissions,
   withErrorHandling,
   createSuccessResponse,
@@ -14,7 +12,6 @@ import {
   getWorkspace,
   getProfile,
   promoteUserToAdmin,
-  isAdminOfWorkspace,
 } from '../../../../../../../lib/database';
 
 // POST /api/workspaces/[id]/members/[memberId]/promote - Promote member to admin

@@ -2,19 +2,17 @@
 // GET /api/transactions - List transactions for current user
 // POST /api/transactions - Create new transaction
 
-import { NextRequest } from 'next/server';
 import {
   withAuth,
   withErrorHandling,
   createSuccessResponse,
-  createNotFoundResponse,
   parsePaginationParams,
 } from '../../../lib/api-utils';
 import {
   getTransactionsByProfile,
-  validateAndCreateTransaction,
   getProfile,
 } from '../../../lib/database';
+import { executeTransaction } from '../../../lib/balance';
 import { CreateTransactionInput } from '../../../lib/types';
 
 // GET /api/transactions - List transactions for current user
@@ -77,13 +75,13 @@ export const POST = withErrorHandling(
         );
       }
 
-      // Create transaction using RPC function
-      const transactionId = await validateAndCreateTransaction({
-        p_sender_profile_id: profile.id,
-        p_receiver_profile_id: body.receiver_profile_id,
-        p_amount: body.amount,
-        p_message: body.message,
-      });
+  // Create transaction using balance utilities
+  const transactionId = await executeTransaction(
+    profile.id,
+    body.receiver_profile_id,
+    body.amount,
+    body.message
+  );
 
       return createSuccessResponse(
         { transactionId },

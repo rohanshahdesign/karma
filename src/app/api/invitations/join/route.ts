@@ -1,16 +1,13 @@
 // API route for joining workspace via invitation
 // POST /api/invitations/join - Join workspace using invite code
 
-import { NextRequest } from 'next/server';
 import {
   withAuth,
   withErrorHandling,
   createSuccessResponse,
-  createNotFoundResponse,
 } from '../../../../lib/api-utils';
 import {
   getInvitationByCode,
-  getProfileByAuthUserIdSafe,
   createProfile,
   deletePendingUser,
 } from '../../../../lib/database';
@@ -82,7 +79,7 @@ export const POST = withErrorHandling(
       // Remove pending user entry if exists
       try {
         await deletePendingUser(req.user.id);
-      } catch (error) {
+      } catch {
         // Ignore if pending user doesn't exist
       }
 

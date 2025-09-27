@@ -259,7 +259,7 @@ export interface TransactionStats {
 export interface SearchConfig {
   query: string;
   fields: string[];
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
   orderBy?: {
     column: string;
     ascending?: boolean;
@@ -272,7 +272,7 @@ export interface SearchResult<T> {
   data: T[];
   total: number;
   query: string;
-  filters: Record<string, any>;
+  filters: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -286,7 +286,7 @@ export interface RealtimeConfig {
   schema?: string;
 }
 
-export interface RealtimePayload<T = any> {
+export interface RealtimePayload<T = Record<string, unknown>> {
   schema: string;
   table: string;
   commit_timestamp: string;
@@ -367,48 +367,73 @@ export type Boolean = boolean;
 // TYPE GUARDS
 // ============================================================================
 
-export function isWorkspace(value: any): value is Workspace {
-  return (
+export function isWorkspace(value: unknown): value is Workspace {
+  return Boolean(
     value &&
-    typeof value.id === 'string' &&
-    typeof value.name === 'string' &&
-    typeof value.slug === 'string' &&
-    typeof value.currency_name === 'string' &&
-    typeof value.monthly_allowance === 'number'
+    typeof value === 'object' &&
+    'id' in value &&
+    'name' in value &&
+    'slug' in value &&
+    'currency_name' in value &&
+    'monthly_allowance' in value &&
+    typeof (value as Record<string, unknown>).id === 'string' &&
+    typeof (value as Record<string, unknown>).name === 'string' &&
+    typeof (value as Record<string, unknown>).slug === 'string' &&
+    typeof (value as Record<string, unknown>).currency_name === 'string' &&
+    typeof (value as Record<string, unknown>).monthly_allowance === 'number'
   );
 }
 
-export function isProfile(value: any): value is Profile {
-  return (
+export function isProfile(value: unknown): value is Profile {
+  return Boolean(
     value &&
-    typeof value.id === 'string' &&
-    typeof value.auth_user_id === 'string' &&
-    typeof value.workspace_id === 'string' &&
-    typeof value.email === 'string' &&
-    typeof value.role === 'string' &&
-    typeof value.giving_balance === 'number' &&
-    typeof value.redeemable_balance === 'number'
+    typeof value === 'object' &&
+    'id' in value &&
+    'auth_user_id' in value &&
+    'workspace_id' in value &&
+    'email' in value &&
+    'role' in value &&
+    'giving_balance' in value &&
+    'redeemable_balance' in value &&
+    typeof (value as Record<string, unknown>).id === 'string' &&
+    typeof (value as Record<string, unknown>).auth_user_id === 'string' &&
+    typeof (value as Record<string, unknown>).workspace_id === 'string' &&
+    typeof (value as Record<string, unknown>).email === 'string' &&
+    typeof (value as Record<string, unknown>).role === 'string' &&
+    typeof (value as Record<string, unknown>).giving_balance === 'number' &&
+    typeof (value as Record<string, unknown>).redeemable_balance === 'number'
   );
 }
 
-export function isTransaction(value: any): value is Transaction {
-  return (
+export function isTransaction(value: unknown): value is Transaction {
+  return Boolean(
     value &&
-    typeof value.id === 'string' &&
-    typeof value.workspace_id === 'string' &&
-    typeof value.sender_profile_id === 'string' &&
-    typeof value.receiver_profile_id === 'string' &&
-    typeof value.amount === 'number'
+    typeof value === 'object' &&
+    'id' in value &&
+    'workspace_id' in value &&
+    'sender_profile_id' in value &&
+    'receiver_profile_id' in value &&
+    'amount' in value &&
+    typeof (value as Record<string, unknown>).id === 'string' &&
+    typeof (value as Record<string, unknown>).workspace_id === 'string' &&
+    typeof (value as Record<string, unknown>).sender_profile_id === 'string' &&
+    typeof (value as Record<string, unknown>).receiver_profile_id === 'string' &&
+    typeof (value as Record<string, unknown>).amount === 'number'
   );
 }
 
-export function isInvitation(value: any): value is Invitation {
-  return (
+export function isInvitation(value: unknown): value is Invitation {
+  return Boolean(
     value &&
-    typeof value.id === 'string' &&
-    typeof value.workspace_id === 'string' &&
-    typeof value.code === 'string' &&
-    typeof value.token === 'string'
+    typeof value === 'object' &&
+    'id' in value &&
+    'workspace_id' in value &&
+    'code' in value &&
+    'token' in value &&
+    typeof (value as Record<string, unknown>).id === 'string' &&
+    typeof (value as Record<string, unknown>).workspace_id === 'string' &&
+    typeof (value as Record<string, unknown>).code === 'string' &&
+    typeof (value as Record<string, unknown>).token === 'string'
   );
 }
 

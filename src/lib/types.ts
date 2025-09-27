@@ -10,12 +10,15 @@ export type UserRole = 'employee' | 'admin' | 'super_admin';
 export interface Workspace {
   id: string;
   name: string;
+  description?: string | null;
   slug: string;
   currency_name: string;
+  currency_symbol?: string;
   monthly_allowance: number;
   min_transaction_amount: number;
   max_transaction_amount: number;
   daily_limit_percentage: number;
+  invite_code: string;
   reward_approval_threshold: number;
   created_at: string;
   updated_at: string;
@@ -86,8 +89,8 @@ export interface AuthUser {
   email_confirmed_at?: string;
   phone_confirmed_at?: string;
   last_sign_in_at?: string;
-  app_metadata: Record<string, any>;
-  user_metadata: Record<string, any>;
+  app_metadata: Record<string, unknown>;
+  user_metadata: Record<string, unknown>;
   aud: string;
   confirmation_sent_at?: string;
   recovery_sent_at?: string;
@@ -209,7 +212,7 @@ export interface CreateInvitationInput {
 // API RESPONSE TYPES
 // ============================================================================
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   message?: string;
@@ -255,7 +258,7 @@ export interface MemberListResponse extends PaginatedResponse<WorkspaceMember> {
 export interface Permission {
   action: string;
   resource: string;
-  conditions?: Record<string, any>;
+  conditions?: Record<string, unknown>;
 }
 
 export interface RolePermissions {
@@ -313,7 +316,7 @@ export interface ActivityFeedItem {
   timestamp: string;
   actor_profile?: Profile;
   target_profile?: Profile;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -357,7 +360,7 @@ export interface FilterConfig {
     | 'like'
     | 'in'
     | 'not_in';
-  value: any;
+  value: unknown;
 }
 
 export interface QueryConfig {
@@ -433,47 +436,73 @@ export const TRANSACTION_LIMITS = {
 // TYPE GUARDS
 // ============================================================================
 
-export function isUserRole(value: any): value is UserRole {
-  return ['employee', 'admin', 'super_admin'].includes(value);
+export function isUserRole(value: unknown): value is UserRole {
+  return typeof value === 'string' && ['employee', 'admin', 'super_admin'].includes(value);
 }
 
-export function isProfile(value: any): value is Profile {
-  return (
+export function isProfile(value: unknown): value is Profile {
+  return Boolean(
     value &&
-    typeof value.id === 'string' &&
-    typeof value.auth_user_id === 'string' &&
-    typeof value.workspace_id === 'string' &&
-    typeof value.email === 'string' &&
-    isUserRole(value.role) &&
-    typeof value.giving_balance === 'number' &&
-    typeof value.redeemable_balance === 'number' &&
-    typeof value.active === 'boolean'
+    typeof value === 'object' &&
+    'id' in value &&
+    'auth_user_id' in value &&
+    'workspace_id' in value &&
+    'email' in value &&
+    'role' in value &&
+    'giving_balance' in value &&
+    'redeemable_balance' in value &&
+    'active' in value &&
+    typeof (value as Record<string, unknown>).id === 'string' &&
+    typeof (value as Record<string, unknown>).auth_user_id === 'string' &&
+    typeof (value as Record<string, unknown>).workspace_id === 'string' &&
+    typeof (value as Record<string, unknown>).email === 'string' &&
+    isUserRole((value as Record<string, unknown>).role) &&
+    typeof (value as Record<string, unknown>).giving_balance === 'number' &&
+    typeof (value as Record<string, unknown>).redeemable_balance === 'number' &&
+    typeof (value as Record<string, unknown>).active === 'boolean'
   );
 }
 
-export function isWorkspace(value: any): value is Workspace {
-  return (
+export function isWorkspace(value: unknown): value is Workspace {
+  return Boolean(
     value &&
-    typeof value.id === 'string' &&
-    typeof value.name === 'string' &&
-    typeof value.slug === 'string' &&
-    typeof value.currency_name === 'string' &&
-    typeof value.monthly_allowance === 'number' &&
-    typeof value.min_transaction_amount === 'number' &&
-    typeof value.max_transaction_amount === 'number' &&
-    typeof value.daily_limit_percentage === 'number' &&
-    typeof value.reward_approval_threshold === 'number'
+    typeof value === 'object' &&
+    'id' in value &&
+    'name' in value &&
+    'slug' in value &&
+    'currency_name' in value &&
+    'monthly_allowance' in value &&
+    'min_transaction_amount' in value &&
+    'max_transaction_amount' in value &&
+    'daily_limit_percentage' in value &&
+    'reward_approval_threshold' in value &&
+    typeof (value as Record<string, unknown>).id === 'string' &&
+    typeof (value as Record<string, unknown>).name === 'string' &&
+    typeof (value as Record<string, unknown>).slug === 'string' &&
+    typeof (value as Record<string, unknown>).currency_name === 'string' &&
+    typeof (value as Record<string, unknown>).monthly_allowance === 'number' &&
+    typeof (value as Record<string, unknown>).min_transaction_amount === 'number' &&
+    typeof (value as Record<string, unknown>).max_transaction_amount === 'number' &&
+    typeof (value as Record<string, unknown>).daily_limit_percentage === 'number' &&
+    typeof (value as Record<string, unknown>).reward_approval_threshold === 'number'
   );
 }
 
-export function isTransaction(value: any): value is Transaction {
-  return (
+export function isTransaction(value: unknown): value is Transaction {
+  return Boolean(
     value &&
-    typeof value.id === 'string' &&
-    typeof value.workspace_id === 'string' &&
-    typeof value.sender_profile_id === 'string' &&
-    typeof value.receiver_profile_id === 'string' &&
-    typeof value.amount === 'number' &&
-    typeof value.created_at === 'string'
+    typeof value === 'object' &&
+    'id' in value &&
+    'workspace_id' in value &&
+    'sender_profile_id' in value &&
+    'receiver_profile_id' in value &&
+    'amount' in value &&
+    'created_at' in value &&
+    typeof (value as Record<string, unknown>).id === 'string' &&
+    typeof (value as Record<string, unknown>).workspace_id === 'string' &&
+    typeof (value as Record<string, unknown>).sender_profile_id === 'string' &&
+    typeof (value as Record<string, unknown>).receiver_profile_id === 'string' &&
+    typeof (value as Record<string, unknown>).amount === 'number' &&
+    typeof (value as Record<string, unknown>).created_at === 'string'
   );
 }

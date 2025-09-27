@@ -1,2 +1,72 @@
 @import 'tailwindcss';
 @plugin "tailwindcss-animate";
+
+/* Fix for dialog and modal z-index issues */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+[data-radix-select-content] {
+  z-index: 9999 !important;
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+[data-radix-dialog-overlay] {
+  z-index: 9998 !important;
+}
+
+[data-radix-dialog-content] {
+  z-index: 9999 !important;
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+/* Prevent hydration mismatch from browser extensions */
+html {
+  /* This helps prevent Grammarly and other extensions from causing hydration issues */
+  -webkit-font-feature-settings: normal;
+  font-feature-settings: normal;
+}
+
+body {
+  /* Remove any browser extension attributes that might cause hydration issues */
+  isolation: isolate;
+}
+
+/* Force proper styling for all form elements */
+input, select, textarea {
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #d1d5db !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 1px #3b82f6 !important;
+}
+
+/* Override any CSS custom properties that might be causing dark styling */
+:root {
+  --background: white;
+  --foreground: black;
+  --card: white;
+  --card-foreground: black;
+  --popover: white;
+  --popover-foreground: black;
+  --primary: #3b82f6;
+  --primary-foreground: white;
+  --secondary: #f1f5f9;
+  --secondary-foreground: black;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: black;
+  --destructive: #ef4444;
+  --destructive-foreground: white;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #3b82f6;
+}

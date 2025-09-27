@@ -2,7 +2,6 @@
 // GET /api/workspaces/[id]/members - List workspace members
 // POST /api/workspaces/[id]/members - Invite new member
 
-import { NextRequest } from 'next/server';
 import {
   withAuth,
   withPermissions,

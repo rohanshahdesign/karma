@@ -3,7 +3,6 @@
 // PUT /api/workspaces/[id] - Update workspace
 // DELETE /api/workspaces/[id] - Delete workspace
 
-import { NextRequest } from 'next/server';
 import {
   withAuth,
   withPermissions,

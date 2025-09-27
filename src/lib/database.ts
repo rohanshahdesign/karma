@@ -17,10 +17,7 @@ import {
   DailySentKarmaInsert,
   ProfileUpdate,
   WorkspaceUpdate,
-  TransactionUpdate,
   InvitationUpdate,
-  PendingUserUpdate,
-  DailySentKarmaUpdate,
   TransactionWithProfiles,
   WorkspaceWithProfiles,
   ProfileWithWorkspace,
@@ -28,10 +25,8 @@ import {
   WorkspaceStats,
   ProfileStats,
   TransactionStats,
-  QueryConfig,
-  PaginatedResponse,
-} from './types';
-import { ApiError } from './api-types';
+} from './supabase-types';
+import { PaginatedResponse, QueryConfig } from './types';
 
 // ============================================================================
 // ERROR HANDLING
@@ -42,38 +37,46 @@ export class DatabaseError extends Error {
     message: string,
     public code: string,
     public status: number = 500,
-    public details?: any
+    public details?: unknown
   ) {
     super(message);
     this.name = 'DatabaseError';
   }
 }
 
-export function handleDatabaseError(error: any): never {
+export function handleDatabaseError(error: unknown): never {
   console.error('Database error:', error);
 
-  if (error?.code === 'PGRST116') {
-    throw new DatabaseError('Resource not found', 'NOT_FOUND', 404);
+  if (error && typeof error === 'object' && 'code' in error) {
+    const dbError = error as { code: string; message?: string };
+    
+    if (dbError.code === 'PGRST116') {
+      throw new DatabaseError('Resource not found', 'NOT_FOUND', 404);
+    }
+
+    if (dbError.code === '23505') {
+      throw new DatabaseError('Resource already exists', 'CONFLICT', 409);
+    }
+
+    if (dbError.code === '23503') {
+      throw new DatabaseError(
+        'Foreign key constraint violation',
+        'CONFLICT',
+        409
+      );
+    }
+
+    if (dbError.code === '42501') {
+      throw new DatabaseError('Insufficient permissions', 'FORBIDDEN', 403);
+    }
   }
 
-  if (error?.code === '23505') {
-    throw new DatabaseError('Resource already exists', 'CONFLICT', 409);
-  }
-
-  if (error?.code === '23503') {
-    throw new DatabaseError(
-      'Foreign key constraint violation',
-      'CONFLICT',
-      409
-    );
-  }
-
-  if (error?.code === '42501') {
-    throw new DatabaseError('Insufficient permissions', 'FORBIDDEN', 403);
-  }
-
+  const message = error && typeof error === 'object' && 'message' in error 
+    ? (error as { message: string }).message 
+    : 'Database operation failed';
+    
   throw new DatabaseError(
-    error?.message || 'Database operation failed',
+    message,
     'DATABASE_ERROR',
     500,
     error
@@ -84,8 +87,10 @@ export function handleDatabaseError(error: any): never {
 // QUERY BUILDERS
 // ============================================================================
 
+type SupabaseQueryBuilder = ReturnType<typeof supabase.from>;
+
 export class QueryBuilder {
-  private query: any;
+  private query: unknown;
   private table: string;
 
   constructor(table: string) {
@@ -94,93 +99,94 @@ export class QueryBuilder {
   }
 
   select(columns: string | string[] = '*'): QueryBuilder {
-    this.query = this.query.select(columns);
+    this.query = (this.query as SupabaseQueryBuilder).select(columns as string);
     return this;
   }
 
-  where(column: string, operator: string, value: any): QueryBuilder {
-    this.query = this.query[operator](column, value);
+  where(column: string, operator: string, value: unknown): QueryBuilder {
+    // Note: This is simplified - in practice you'd want proper typing for operators
+    this.query = (this.query as unknown as Record<string, (col: string, val: unknown) => unknown>)[operator](column, value);
     return this;
   }
 
-  eq(column: string, value: any): QueryBuilder {
-    this.query = this.query.eq(column, value);
+  eq(column: string, value: unknown): QueryBuilder {
+    this.query = (this.query as Record<string, (col: string, val: unknown) => unknown>).eq(column, value);
     return this;
   }
 
-  neq(column: string, value: any): QueryBuilder {
-    this.query = this.query.neq(column, value);
+  neq(column: string, value: unknown): QueryBuilder {
+    this.query = (this.query as Record<string, (col: string, val: unknown) => unknown>).neq(column, value);
     return this;
   }
 
-  gt(column: string, value: any): QueryBuilder {
-    this.query = this.query.gt(column, value);
+  gt(column: string, value: number | string): QueryBuilder {
+    this.query = (this.query as Record<string, (col: string, val: number | string) => unknown>).gt(column, value);
     return this;
   }
 
-  gte(column: string, value: any): QueryBuilder {
-    this.query = this.query.gte(column, value);
+  gte(column: string, value: number | string): QueryBuilder {
+    this.query = (this.query as Record<string, (col: string, val: number | string) => unknown>).gte(column, value);
     return this;
   }
 
-  lt(column: string, value: any): QueryBuilder {
-    this.query = this.query.lt(column, value);
+  lt(column: string, value: number | string): QueryBuilder {
+    this.query = (this.query as Record<string, (col: string, val: number | string) => unknown>).lt(column, value);
     return this;
   }
 
-  lte(column: string, value: any): QueryBuilder {
-    this.query = this.query.lte(column, value);
+  lte(column: string, value: number | string): QueryBuilder {
+    this.query = (this.query as Record<string, (col: string, val: number | string) => unknown>).lte(column, value);
     return this;
   }
 
   like(column: string, pattern: string): QueryBuilder {
-    this.query = this.query.like(column, pattern);
+    this.query = (this.query as Record<string, (col: string, pattern: string) => unknown>).like(column, pattern);
     return this;
   }
 
   ilike(column: string, pattern: string): QueryBuilder {
-    this.query = this.query.ilike(column, pattern);
+    this.query = (this.query as Record<string, (col: string, pattern: string) => unknown>).ilike(column, pattern);
     return this;
   }
 
-  in(column: string, values: any[]): QueryBuilder {
-    this.query = this.query.in(column, values);
+  in(column: string, values: unknown[]): QueryBuilder {
+    this.query = (this.query as Record<string, (col: string, vals: unknown[]) => unknown>).in(column, values);
     return this;
   }
 
-  is(column: string, value: any): QueryBuilder {
-    this.query = this.query.is(column, value);
+  is(column: string, value: null | boolean): QueryBuilder {
+    this.query = (this.query as Record<string, (col: string, val: null | boolean) => unknown>).is(column, value);
     return this;
   }
 
   orderBy(column: string, options?: { ascending?: boolean }): QueryBuilder {
-    this.query = this.query.order(column, options);
+    this.query = (this.query as Record<string, (col: string, opts?: { ascending?: boolean }) => unknown>).order(column, options);
     return this;
   }
 
   limit(count: number): QueryBuilder {
-    this.query = this.query.limit(count);
+    this.query = (this.query as Record<string, (count: number) => unknown>).limit(count);
     return this;
   }
 
   range(from: number, to: number): QueryBuilder {
-    this.query = this.query.range(from, to);
+    this.query = (this.query as Record<string, (from: number, to: number) => unknown>).range(from, to);
     return this;
   }
 
   single(): QueryBuilder {
-    this.query = this.query.single();
+    this.query = (this.query as Record<string, () => unknown>).single();
     return this;
   }
 
   maybeSingle(): QueryBuilder {
-    this.query = this.query.maybeSingle();
+    this.query = (this.query as Record<string, () => unknown>).maybeSingle();
     return this;
   }
 
   async execute<T>(): Promise<T> {
     try {
-      const { data, error } = await this.query;
+      const { data, error } = await (this.query as Promise<{ data: T; error: unknown }>);
       if (error) throw error;
       return data;
     } catch (error) {
@@ -276,6 +282,18 @@ export async function getWorkspaceStats(
 
   if (error) handleDatabaseError(error);
   return data;
+}
+
+export async function getCurrentWorkspace(): Promise<Workspace | null> {
+  try {
+    const { getCurrentProfile } = await import('./permissions');
+    const profile = await getCurrentProfile();
+    if (!profile) return null;
+    
+    return await getWorkspace(profile.workspace_id);
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================================
@@ -378,7 +396,7 @@ export async function getProfilesByWorkspace(
           query = query.ilike(filter.field, `%${filter.value}%`);
           break;
         case 'in':
-          query = query.in(filter.field, filter.value);
+          query = query.in(filter.field, Array.isArray(filter.value) ? filter.value : [filter.value]);
           break;
       }
     });
@@ -901,9 +919,9 @@ export function createQueryBuilder(table: string): QueryBuilder {
 }
 
 export async function executeTransaction<T>(
-  operations: (() => Promise<any>)[]
+  operations: (() => Promise<T>)[]
 ): Promise<T[]> {
-  const results: any[] = [];
+  const results: T[] = [];
 
   try {
     for (const operation of operations) {

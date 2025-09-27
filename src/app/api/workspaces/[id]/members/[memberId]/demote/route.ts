@@ -1,9 +1,7 @@
 // API route for demoting admins to employees
 // POST /api/workspaces/[id]/members/[memberId]/demote - Demote admin to employee
 
-import { NextRequest } from 'next/server';
 import {
-  withAuth,
   withPermissions,
   withErrorHandling,
   createSuccessResponse,
@@ -14,7 +12,6 @@ import {
   getWorkspace,
   getProfile,
   demoteAdminToEmployee,
-  isAdminOfWorkspace,
 } from '../../../../../../../lib/database';
 
 // POST /api/workspaces/[id]/members/[memberId]/demote - Demote admin to employee

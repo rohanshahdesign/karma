@@ -3,8 +3,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentProfile } from './permissions';
-import { ApiError, ApiResponse, HTTP_STATUS, ERROR_CODES } from './api-types';
+import { HTTP_STATUS, ERROR_CODES, ApiError } from './api-types';
+import { ApiResponse, PaginatedResponse } from './types';
 import { DatabaseError } from './database';
+import { Profile } from './supabase-types';
 
 // ============================================================================
 // REQUEST UTILITIES
@@ -14,23 +16,24 @@ export interface AuthenticatedRequest extends NextRequest {
   user: {
     id: string;
     email: string;
-    profile: any;
+    profile: Profile;
   };
 }
 
-export async function getAuthenticatedUser(req: NextRequest): Promise<{
+export async function getAuthenticatedUser(): Promise<{
   id: string;
   email: string;
-  profile: any;
+  profile: Profile;
 }> {
   try {
     const profile = await getCurrentProfile();
     if (!profile) {
-      throw new ApiError(
-        'User not authenticated',
-        ERROR_CODES.UNAUTHORIZED,
-        HTTP_STATUS.UNAUTHORIZED
-      );
+      const error = new Error('User not authenticated');
+      Object.assign(error, {
+        code: ERROR_CODES.UNAUTHORIZED,
+        status: HTTP_STATUS.UNAUTHORIZED,
+      });
+      throw error;
     }
 
     return {
@@ -39,12 +42,21 @@ export async function getAuthenticatedUser(req: NextRequest): Promise<{
       profile,
     };
   } catch (error) {
-    if (error instanceof ApiError) throw error;
-    throw new ApiError(
-      'Authentication failed',
-      ERROR_CODES.UNAUTHORIZED,
-      HTTP_STATUS.UNAUTHORIZED
-    );
+    if (
+      error &&
+      typeof error === 'object' &&
+      'message' in error &&
+      'code' in error &&
+      'status' in error
+    ) {
+      throw error;
+    }
+    const newError = new Error('Authentication failed');
+    Object.assign(newError, {
+      code: ERROR_CODES.UNAUTHORIZED,
+      status: HTTP_STATUS.UNAUTHORIZED,
+    });
+    throw newError;
   }
 }
 
@@ -52,12 +64,13 @@ export async function parseRequestBody<T>(req: NextRequest): Promise<T> {
   try {
     const body = await req.json();
     return body as T;
-  } catch (error) {
-    throw new ApiError(
-      'Invalid JSON in request body',
-      ERROR_CODES.VALIDATION_ERROR,
-      HTTP_STATUS.BAD_REQUEST
-    );
+  } catch {
+    const newError = new Error('Invalid JSON in request body');
+    Object.assign(newError, {
+      code: ERROR_CODES.VALIDATION_ERROR,
+      status: HTTP_STATUS.BAD_REQUEST,
+    });
+    throw newError;
   }
 }
 
@@ -117,7 +130,7 @@ export function createErrorResponse(
   error: string,
   code: string,
   status: number,
-  details?: any
+  details?: unknown
 ): NextResponse<ApiResponse> {
   return NextResponse.json(
     {
@@ -183,6 +196,19 @@ export function createForbiddenResponse(
   );
 }
 
+export function createBadRequestResponse(
+  message: string = 'Bad Request'
+): NextResponse<ApiResponse> {
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+      code: ERROR_CODES.BAD_REQUEST,
+    },
+    { status: HTTP_STATUS.BAD_REQUEST }
+  );
+}
+
 export function createConflictResponse(
   message: string = 'Resource already exists'
 ): NextResponse<ApiResponse> {
@@ -218,16 +244,23 @@ export function withAuth(
 ) {
   return async (req: NextRequest): Promise<NextResponse> => {
     try {
-      const user = await getAuthenticatedUser(req);
+      const user = await getAuthenticatedUser();
       (req as AuthenticatedRequest).user = user;
       return await handler(req as AuthenticatedRequest);
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'message' in error &&
+        'code' in error &&
+        'status' in error
+      ) {
+        const apiError = error as ApiError;
         return createErrorResponse(
-          error.message,
-          error.code,
-          error.status,
-          error.details
+          apiError.message,
+          apiError.code,
+          apiError.status,
+          apiError.details
         );
       }
       return createServerErrorResponse('Authentication middleware failed');
@@ -244,9 +277,8 @@ export function withPermissions(requiredPermissions: string[]) {
         try {
           const { profile } = req.user;
 
-          // Check if user has required permissions
+          // Check if user has required permissions using the existing permission system
           const hasPermission = requiredPermissions.every((permission) => {
-            // This is a simplified permission check - you'd implement your own logic
             switch (permission) {
               case 'admin':
                 return (
@@ -271,12 +303,19 @@ export function withPermissions(requiredPermissions: string[]) {
 
           return await handler(req);
         } catch (error) {
-          if (error instanceof ApiError) {
+          if (
+            error &&
+            typeof error === 'object' &&
+            'message' in error &&
+            'code' in error &&
+            'status' in error
+          ) {
+            const apiError = error as ApiError;
             return createErrorResponse(
-              error.message,
-              error.code,
-              error.status,
-              error.details
+              apiError.message,
+              apiError.code,
+              apiError.status,
+              apiError.details
             );
           }
           return createServerErrorResponse('Permission middleware failed');
@@ -286,7 +325,7 @@ export function withPermissions(requiredPermissions: string[]) {
   };
 }
 
-export function withValidation<T>(schema: any) {
+export function withValidation<T>(schema: { required?: string[] }) {
   return function (
     handler: (req: AuthenticatedRequest, body: T) => Promise<NextResponse>
   ) {
@@ -307,6 +346,8 @@ export function withValidation<T>(schema: any) {
             for (const field of schema.required) {
               if (
                 !body ||
+                typeof body !== 'object' ||
+                body === null ||
                 !(field in body) ||
                 body[field as keyof T] === undefined ||
                 body[field as keyof T] === null
@@ -326,12 +367,19 @@ export function withValidation<T>(schema: any) {
 
           return await handler(req, body);
         } catch (error) {
-          if (error instanceof ApiError) {
+          if (
+            error &&
+            typeof error === 'object' &&
+            'message' in error &&
+            'code' in error &&
+            'status' in error
+          ) {
+            const apiError = error as ApiError;
             return createErrorResponse(
-              error.message,
-              error.code,
-              error.status,
-              error.details
+              apiError.message,
+              apiError.code,
+              apiError.status,
+              apiError.details
             );
           }
           return createServerErrorResponse('Validation middleware failed');
@@ -350,21 +398,35 @@ export function withErrorHandling(
     } catch (error) {
       console.error('API Error:', error);
 
-      if (error instanceof ApiError) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'message' in error &&
+        'code' in error &&
+        'status' in error
+      ) {
+        const apiError = error as ApiError;
         return createErrorResponse(
-          error.message,
-          error.code,
-          error.status,
-          error.details
+          apiError.message,
+          apiError.code,
+          apiError.status,
+          apiError.details
         );
       }
 
-      if (error instanceof DatabaseError) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'message' in error &&
+        'code' in error &&
+        'status' in error
+      ) {
+        const dbError = error as DatabaseError;
         return createErrorResponse(
-          error.message,
-          error.code,
-          error.status,
-          error.details
+          dbError.message,
+          dbError.code,
+          dbError.status,
+          dbError.details
         );
       }
 
@@ -398,7 +460,7 @@ export function createPaginationResponse<T>(
   total: number,
   page: number,
   limit: number
-): ApiResponse<T[]> {
+): PaginatedResponse<T> {
   const totalPages = Math.ceil(total / limit);
 
   return {
@@ -448,7 +510,10 @@ const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 export function withRateLimit(windowMs: number, maxRequests: number) {
   return function (handler: (req: NextRequest) => Promise<NextResponse>) {
     return async (req: NextRequest): Promise<NextResponse> => {
-      const clientId = req.ip || 'unknown';
+      // Get client IP from headers (Next.js doesn't have direct ip property)
+      const forwarded = req.headers.get('x-forwarded-for');
+      const realIp = req.headers.get('x-real-ip');
+      const clientId = forwarded?.split(',')[0] || realIp || 'unknown';
       const now = Date.now();
       const windowStart = now - windowMs;
 
@@ -482,7 +547,7 @@ export function withRateLimit(windowMs: number, maxRequests: number) {
 // CACHING UTILITIES (Simplified)
 // ============================================================================
 
-const cache = new Map<string, { data: any; expires: number }>();
+const cache = new Map<string, { data: unknown; expires: number }>();
 
 export function withCache(
   ttl: number,
@@ -546,11 +611,12 @@ export function formatDate(date: string | Date): string {
 export function parseDate(dateString: string): Date {
   const date = new Date(dateString);
   if (isNaN(date.getTime())) {
-    throw new ApiError(
-      'Invalid date format',
-      ERROR_CODES.VALIDATION_ERROR,
-      HTTP_STATUS.BAD_REQUEST
-    );
+    const error = new Error('Invalid date format');
+    Object.assign(error, {
+      code: ERROR_CODES.VALIDATION_ERROR,
+      status: HTTP_STATUS.BAD_REQUEST,
+    });
+    throw error;
   }
   return date;
 }

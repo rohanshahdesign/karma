@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import supabase from '../../../../lib/supabase';
 
-export default function JoinWorkspacePage() {
+function JoinWorkspaceForm() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get('token');
@@ -12,30 +12,7 @@ export default function JoinWorkspacePage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!token) return;
-    const joinByToken = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { data: inv, error: invErr } = await supabase
-          .from('invitations')
-          .select('*')
-          .eq('token', token)
-          .eq('active', true)
-          .maybeSingle();
-        if (invErr || !inv) throw invErr ?? new Error('Invalid invite');
-        await join(inv.code);
-      } catch (e: any) {
-        setError(e?.message ?? 'Invalid invite');
-      } finally {
-        setLoading(false);
-      }
-    };
-    void joinByToken();
-  }, [token]);
-
-  const join = async (invCode: string) => {
+  const join = useCallback(async (invCode: string) => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -64,7 +41,30 @@ export default function JoinWorkspacePage() {
     await supabase.from('pending_users').delete().eq('auth_user_id', user.id);
 
     router.push('/home');
-  };
+  }, [router]);
+
+  useEffect(() => {
+    if (!token) return;
+    const joinByToken = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: inv, error: invErr } = await supabase
+          .from('invitations')
+          .select('*')
+          .eq('token', token)
+          .eq('active', true)
+          .maybeSingle();
+        if (invErr || !inv) throw invErr ?? new Error('Invalid invite');
+        await join(inv.code);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Invalid invite');
+      } finally {
+        setLoading(false);
+      }
+    };
+    void joinByToken();
+  }, [token, join]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,8 +72,8 @@ export default function JoinWorkspacePage() {
     setError(null);
     try {
       await join(code.toUpperCase());
-    } catch (e: any) {
-      setError(e?.message ?? 'Could not join');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not join');
     } finally {
       setLoading(false);
     }
@@ -104,5 +104,19 @@ export default function JoinWorkspacePage() {
         </button>
       </form>
     </div>
+  );
+}
+
+export default function JoinWorkspacePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-full max-w-lg rounded-2xl border bg-white p-8 shadow-sm text-center">
+          <div className="animate-pulse">Loading...</div>
+        </div>
+      </div>
+    }>
+      <JoinWorkspaceForm />
+    </Suspense>
   );
 }

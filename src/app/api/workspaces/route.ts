@@ -2,7 +2,6 @@
 // GET /api/workspaces - List workspaces for current user
 // POST /api/workspaces - Create new workspace
 
-import { NextRequest } from 'next/server';
 import {
   withAuth,
   withErrorHandling,
@@ -61,7 +60,7 @@ export const POST = withErrorHandling(
     }
 
     try {
-      const workspaceId = await createWorkspaceWithOwner({
+      await createWorkspaceWithOwner({
         p_name: body.name,
         p_slug: body.slug || generateSlug(body.name),
         p_currency_name: body.currency_name,

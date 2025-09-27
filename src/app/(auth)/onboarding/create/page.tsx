@@ -23,7 +23,7 @@ export default function CreateWorkspacePage() {
       if (userError || !user) throw userError ?? new Error('No user');
 
       // Use RPC to create workspace and profile atomically
-      const { data: workspaceId, error: rpcErr } = await supabase.rpc(
+      const { error: rpcErr } = await supabase.rpc(
         'create_workspace_with_owner',
         {
           p_name: orgName,
@@ -36,8 +36,8 @@ export default function CreateWorkspacePage() {
       if (rpcErr) throw rpcErr;
 
       router.push('/onboarding/invite');
-    } catch (err: any) {
-      setError(err?.message ?? 'Something went wrong');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
     }

@@ -1,87 +1,294 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import supabase from '../../../lib/supabase';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+import { getCurrentProfile } from '@/lib/permissions';
+import { getProfileBalance, getDailyLimitInfo, type BalanceInfo, type DailyLimitInfo } from '@/lib/balance';
+import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  Send,
+  TrendingUp,
+  Users,
+  ArrowUpRight,
+  ArrowDownLeft,
+  MessageSquare,
+  Calendar,
+  Coins,
+} from 'lucide-react';
 
 export default function DashboardHomePage() {
   const router = useRouter();
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null);
+  const [dailyLimitInfo, setDailyLimitInfo] = useState<DailyLimitInfo | null>(null);
+  const [recentTransactions, setRecentTransactions] = useState<TransactionWithProfiles[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Guard: require a profile/workspace; otherwise route to onboarding
-  useEffect(() => {
-    const check = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.replace('/login');
-        return;
-      }
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .maybeSingle();
+  const loadDashboardData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get current user profile
+      const profile = await getCurrentProfile();
       if (!profile) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          router.replace('/login');
+          return;
+        }
+        // Create pending user entry
         await supabase
           .from('pending_users')
           .upsert({ auth_user_id: user.id, email: user.email });
         router.replace('/onboarding');
+        return;
       }
-    };
-    void check();
+
+      setCurrentProfile(profile);
+
+      // Load balance information
+      const [balance, dailyLimit] = await Promise.all([
+        getProfileBalance(profile.id),
+        getDailyLimitInfo(profile.id),
+      ]);
+
+      setBalanceInfo(balance);
+      setDailyLimitInfo(dailyLimit);
+
+      // Load recent transactions
+      const { data: transactions } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          sender_profile:profiles!sender_profile_id(
+            id, email, full_name
+          ),
+          receiver_profile:profiles!receiver_profile_id(
+            id, email, full_name
+          )
+        `)
+        .or(`sender_profile_id.eq.${profile.id},receiver_profile_id.eq.${profile.id}`)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      setRecentTransactions(transactions || []);
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
   }, [router]);
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-12 px-4">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Karma Dashboard
-          </h1>
-          <p className="text-xl text-gray-600">
-            This is the main dashboard page
-          </p>
-        </div>
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-semibold mb-2">Giving Balance</h3>
-            <p className="text-3xl font-bold text-blue-600">100</p>
-            <p className="text-sm text-gray-500">Karma points to give</p>
-          </div>
+  const formatTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    return date.toLocaleDateString();
+  };
 
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-semibold mb-2">Earned Balance</h3>
-            <p className="text-3xl font-bold text-green-600">250</p>
-            <p className="text-sm text-gray-500">Karma points earned</p>
-          </div>
 
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-semibold mb-2">Leaderboard Rank</h3>
-            <p className="text-3xl font-bold text-purple-600">#5</p>
-            <p className="text-sm text-gray-500">Out of 50 members</p>
-          </div>
-        </div>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
-          <div className="space-y-4">
-            <div className="border-l-4 border-blue-500 pl-4">
-              <p className="text-sm text-gray-600">
-                You gave 10 Karma to John for great teamwork
-              </p>
-              <p className="text-xs text-gray-400">2 hours ago</p>
-            </div>
-            <div className="border-l-4 border-green-500 pl-4">
-              <p className="text-sm text-gray-600">
-                Sarah gave you 15 Karma for code review
-              </p>
-              <p className="text-xs text-gray-400">1 day ago</p>
-            </div>
-          </div>
+  if (error || !currentProfile) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
+          <p className="text-gray-600 mb-4">{error || 'Unable to load your profile'}</p>
+          <Button onClick={loadDashboardData}>Try Again</Button>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-6 space-y-6 pb-20 md:pb-6">
+      {/* Welcome Header */}
+      <div className="space-y-2">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+          Welcome back, {currentProfile.full_name?.split(' ')[0] || 'there'}!
+        </h1>
+        <p className="text-gray-600">
+          Here&apos;s your karma activity summary
+        </p>
+      </div>
+
+      {/* Balance Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Giving Balance</CardTitle>
+            <Coins className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {balanceInfo?.giving_balance || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Available to give
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Earned Balance</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {balanceInfo?.redeemable_balance || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Total earned karma
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Daily Usage</CardTitle>
+            <Calendar className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">
+              {dailyLimitInfo?.percentage_used?.toFixed(0) || 0}%
+            </div>
+            <Progress 
+              value={dailyLimitInfo?.percentage_used || 0} 
+              className="mt-2" 
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {dailyLimitInfo?.remaining_limit || 0} / {dailyLimitInfo?.daily_limit || 0} remaining today
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>
+            Common actions you can take right now
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-4">
+          <Button asChild className="flex-1 md:flex-none">
+            <Link href="/send">
+              <Send className="mr-2 h-4 w-4" />
+              Send Karma
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="flex-1 md:flex-none">
+            <Link href="/transactions">
+              <MessageSquare className="mr-2 h-4 w-4" />
+              View History
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="hidden md:inline-flex">
+            <Link href="/workspaces">
+              <Users className="mr-2 h-4 w-4" />
+              Workspace
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+          <CardDescription>
+            Your latest karma transactions
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recentTransactions.length > 0 ? (
+            <div className="space-y-4">
+              {recentTransactions.map((transaction) => {
+                const isSent = transaction.sender_profile_id === currentProfile.id;
+                const otherProfile = isSent ? transaction.receiver_profile : transaction.sender_profile;
+                
+                return (
+                  <div key={transaction.id} className="flex items-start space-x-4">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className={isSent ? "bg-blue-100 text-blue-600" : "bg-green-100 text-green-600"}>
+                        {isSent ? (
+                          <ArrowUpRight className="h-4 w-4" />
+                        ) : (
+                          <ArrowDownLeft className="h-4 w-4" />
+                        )}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {isSent ? 'You sent' : 'You received'} {transaction.amount} karma {isSent ? 'to' : 'from'} {otherProfile?.full_name || otherProfile?.email || 'Someone'}
+                      </p>
+                      {transaction.message && (
+                        <p className="text-sm text-muted-foreground">
+                          &quot;{transaction.message}&quot;
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {formatTimeAgo(transaction.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No transactions yet
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Start by sending some karma to your teammates!
+              </p>
+              <Button asChild>
+                <Link href="/send">
+                  <Send className="mr-2 h-4 w-4" />
+                  Send Your First Karma
+                </Link>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -3,7 +3,6 @@
 // PUT /api/workspaces/[id]/members/[memberId] - Update member
 // DELETE /api/workspaces/[id]/members/[memberId] - Remove member
 
-import { NextRequest } from 'next/server';
 import {
   withAuth,
   withPermissions,
@@ -17,8 +16,6 @@ import {
   getProfile,
   updateProfile,
   deleteProfile,
-  promoteUserToAdmin,
-  demoteAdminToEmployee,
   isAdminOfWorkspace,
 } from '../../../../../../lib/database';
 import { UpdateProfileInput } from '../../../../../../lib/types';

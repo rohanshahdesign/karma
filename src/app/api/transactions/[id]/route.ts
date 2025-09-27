@@ -1,7 +1,6 @@
 // API route for individual transaction operations
 // GET /api/transactions/[id] - Get transaction details
 
-import { NextRequest } from 'next/server';
 import {
   withAuth,
   withErrorHandling,

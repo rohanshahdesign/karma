@@ -1,7 +1,7 @@
 // Permission checking utilities for role-based access control
 
-import supabase from './supabase';
-import { UserRole, Profile, Workspace } from './types';
+import { supabase } from './supabase';
+import { UserRole, Profile, Workspace } from './supabase-types';
 
 // Get current user's profile
 export async function getCurrentProfile(): Promise<Profile | null> {
