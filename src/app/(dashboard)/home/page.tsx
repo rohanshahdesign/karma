@@ -1,4 +1,37 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import supabase from '../../../lib/supabase';
+
 export default function DashboardHomePage() {
+  const router = useRouter();
+
+  // Guard: require a profile/workspace; otherwise route to onboarding
+  useEffect(() => {
+    const check = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace('/login');
+        return;
+      }
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+      if (!profile) {
+        await supabase
+          .from('pending_users')
+          .upsert({ auth_user_id: user.id, email: user.email });
+        router.replace('/onboarding');
+      }
+    };
+    void check();
+  }, [router]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-12 px-4">
@@ -35,11 +68,15 @@ export default function DashboardHomePage() {
           <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
           <div className="space-y-4">
             <div className="border-l-4 border-blue-500 pl-4">
-              <p className="text-sm text-gray-600">You gave 10 Karma to John for great teamwork</p>
+              <p className="text-sm text-gray-600">
+                You gave 10 Karma to John for great teamwork
+              </p>
               <p className="text-xs text-gray-400">2 hours ago</p>
             </div>
             <div className="border-l-4 border-green-500 pl-4">
-              <p className="text-sm text-gray-600">Sarah gave you 15 Karma for code review</p>
+              <p className="text-sm text-gray-600">
+                Sarah gave you 15 Karma for code review
+              </p>
               <p className="text-xs text-gray-400">1 day ago</p>
             </div>
           </div>
