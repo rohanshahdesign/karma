@@ -19,6 +19,8 @@ interface TestResult {
   createdInvitation?: unknown;
   workspaceId?: string;
   searchedCode?: string;
+  cleanedInvitations?: number;
+  activeCode?: string;
 }
 
 export default function TestInvitePage() {
@@ -363,6 +365,74 @@ export default function TestInvitePage() {
               variant="outline"
             >
               Test If Code Can Join
+            </Button>
+            
+            <Button 
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (!user) throw new Error('Not authenticated');
+                  
+                  const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('workspace_id')
+                    .eq('auth_user_id', user.id)
+                    .single();
+                    
+                  if (!profile) throw new Error('Profile not found');
+                  
+                  // Get all invitations for workspace
+                  const { data: invitations } = await supabase
+                    .from('invitations')
+                    .select('*')
+                    .eq('workspace_id', profile.workspace_id)
+                    .order('created_at', { ascending: false });
+                    
+                  if (!invitations || invitations.length <= 1) {
+                    setResult({
+                      success: false,
+                      message: 'No cleanup needed - only one or zero invitations found'
+                    });
+                    return;
+                  }
+                  
+                  // Keep the most recent one, disable the rest
+                  const [latest, ...oldOnes] = invitations;
+                  
+                  // Disable old invitations
+                  const { error: disableError } = await supabase
+                    .from('invitations')
+                    .update({ active: false })
+                    .in('id', oldOnes.map(inv => inv.id));
+                    
+                  if (disableError) throw disableError;
+                  
+                  // Make sure latest is active
+                  const { error: activateError } = await supabase
+                    .from('invitations')
+                    .update({ active: true })
+                    .eq('id', latest.id);
+                    
+                  if (activateError) throw activateError;
+                  
+                  setResult({
+                    success: true,
+                    message: `Cleanup complete! Disabled ${oldOnes.length} old invitations, kept latest: ${latest.code}`,
+                    cleanedInvitations: oldOnes.length,
+                    activeCode: latest.code
+                  });
+                  
+                } catch (err) {
+                  setResult({ success: false, message: 'Cleanup failed', error: err });
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              variant="outline"
+            >
+              Cleanup Duplicate Invitations
             </Button>
           </div>
           

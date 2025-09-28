@@ -272,60 +272,49 @@ export default function WorkspacesPage() {
       const newReadableCode = generateInviteCode();
       console.log('Generating new code:', newReadableCode);
       
-      // First, try to update existing invitation
-      const { data: updateData, error: updateError } = await supabase
+      // First, disable all existing invitations
+      await supabase
         .from('invitations')
-        .update({ 
-          code: newReadableCode    // Update human-readable code
-        })
+        .update({ active: false })
         .eq('workspace_id', workspaceId)
-        .eq('active', true)
-        .select();
-        
-      console.log('Update result:', { updateData, updateError });
-        
-      if (updateError) {
-        // If update fails, create a new invitation
-        console.log('No existing invitation found, creating new one');
-        
-        if (!currentProfile?.id) {
-          throw new Error('User profile not found');
-        }
-        
-        const { data: insertData, error: insertError } = await supabase
-          .from('invitations')
-          .insert({
-            workspace_id: workspaceId,
-            code: newReadableCode,          // Human-readable code
-            created_by_profile_id: currentProfile.id,
-            uses_count: 0,
-            active: true
-          })
-          .select();
-          
-        console.log('Insert result:', { insertData, insertError });
-          
-        if (insertError) {
-          console.error('Error creating invite:', {
-            message: insertError.message,
-            details: insertError.details,
-            hint: insertError.hint,
-            code: insertError.code,
-            full: insertError
-          });
-          throw insertError;
-        }
+        .eq('active', true);
+      
+      // Create a new invitation
+      if (!currentProfile?.id) {
+        throw new Error('User profile not found');
       }
       
-      console.log('About to refresh UI with new code:', newReadableCode);
-      toast.success(`Invite code regenerated: ${newReadableCode}`);
-      await loadProfileAndWorkspaces();
+      const { data: insertData, error: insertError } = await supabase
+        .from('invitations')
+        .insert({
+          workspace_id: workspaceId,
+          code: newReadableCode,
+          created_by_profile_id: currentProfile.id,
+          uses_count: 0,
+          active: true
+        })
+        .select();
+        
+      console.log('Insert result:', { insertData, insertError });
+        
+      if (insertError) {
+        console.error('Error creating invite:', insertError);
+        throw insertError;
+      }
+      
+      // Update the UI state directly without full reload
+      setWorkspaces(prev => 
+        prev.map(workspace => 
+          workspace.id === workspaceId 
+            ? { ...workspace, invite_code: newReadableCode }
+            : workspace
+        )
+      );
+      
+      console.log('Updated UI with new code:', newReadableCode);
+      toast.success(`New invite code: ${newReadableCode}`);
     } catch (err) {
-      console.error('Failed to regenerate invite code:', {
-        error: err,
-        message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
-      });
+      console.error('Failed to regenerate invite code:', err);
       toast.error(`Could not regenerate invite code: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };

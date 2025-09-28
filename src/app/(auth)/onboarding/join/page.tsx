@@ -14,33 +14,73 @@ function JoinWorkspaceForm() {
   const [loading, setLoading] = useState(false);
 
   const join = useCallback(async (invCode: string) => {
+    console.log('Attempting to join with code:', invCode);
+    
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error('Not signed in');
 
+    console.log('User authenticated:', { userId: user.id, email: user.email });
+
+    // Check if user already has a profile
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
+      
+    if (existingProfile) {
+      console.log('User already has profile, redirecting to home');
+      router.push('/home');
+      return;
+    }
+
     const { data: inv, error: invErr } = await supabase
       .from('invitations')
       .select('*')
-      .eq('code', invCode)
+      .eq('code', invCode.toUpperCase())
       .eq('active', true)
       .maybeSingle();
-    if (invErr || !inv) throw invErr ?? new Error('Invalid code');
+      
+    console.log('Invitation lookup result:', { invitation: inv, error: invErr, searchedCode: invCode.toUpperCase() });
+    
+    if (invErr) {
+      console.error('Database error looking up invitation:', invErr);
+      throw invErr;
+    }
+    
+    if (!inv) {
+      throw new Error(`Invalid code: "${invCode.toUpperCase()}" not found or inactive`);
+    }
 
-    // Upsert profile into the workspace as employee
+    console.log('Creating profile for workspace:', inv.workspace_id);
+    
+    // Create profile in the workspace as employee
     const { error: profErr } = await supabase.from('profiles').insert({
       auth_user_id: user.id,
       workspace_id: inv.workspace_id,
-      email: user.email,
+      email: user.email || '',
       role: 'employee',
       giving_balance: 100,
       redeemable_balance: 0,
     });
-    if (profErr) throw profErr;
+    
+    if (profErr) {
+      console.error('Error creating profile:', profErr);
+      throw profErr;
+    }
 
     // Remove pending entry if exists
     await supabase.from('pending_users').delete().eq('auth_user_id', user.id);
+    
+    // Increment invitation usage
+    await supabase
+      .from('invitations')
+      .update({ uses_count: inv.uses_count + 1 })
+      .eq('id', inv.id);
 
+    console.log('Successfully joined workspace, redirecting to home');
     router.push('/home');
   }, [router]);
 
