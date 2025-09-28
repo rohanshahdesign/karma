@@ -262,7 +262,7 @@ export default function WorkspacesPage() {
   };
 
   const copyInviteLink = (inviteCode: string) => {
-    const inviteLink = `${window.location.origin}/onboarding/join?token=${inviteCode}`;
+    const inviteLink = `${window.location.origin}/onboarding/join?code=${inviteCode}`;
     navigator.clipboard.writeText(inviteLink);
     toast.success('Invite link copied to clipboard!');
   };
@@ -270,16 +270,19 @@ export default function WorkspacesPage() {
   const handleRegenerateInviteCode = async (workspaceId: string) => {
     try {
       const newReadableCode = generateInviteCode();
+      console.log('Generating new code:', newReadableCode);
       
       // First, try to update existing invitation
-      const { error: updateError } = await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from('invitations')
         .update({ 
           code: newReadableCode    // Update human-readable code
-          // token remains the same (UUID)
         })
         .eq('workspace_id', workspaceId)
-        .eq('active', true);
+        .eq('active', true)
+        .select();
+        
+      console.log('Update result:', { updateData, updateError });
         
       if (updateError) {
         // If update fails, create a new invitation
@@ -289,7 +292,7 @@ export default function WorkspacesPage() {
           throw new Error('User profile not found');
         }
         
-        const { error: insertError } = await supabase
+        const { data: insertData, error: insertError } = await supabase
           .from('invitations')
           .insert({
             workspace_id: workspaceId,
@@ -297,8 +300,10 @@ export default function WorkspacesPage() {
             created_by_profile_id: currentProfile.id,
             uses_count: 0,
             active: true
-            // token will be auto-generated as UUID by database
-          });
+          })
+          .select();
+          
+        console.log('Insert result:', { insertData, insertError });
           
         if (insertError) {
           console.error('Error creating invite:', {
@@ -312,7 +317,8 @@ export default function WorkspacesPage() {
         }
       }
       
-      toast.success('Invite code regenerated successfully!');
+      console.log('About to refresh UI with new code:', newReadableCode);
+      toast.success(`Invite code regenerated: ${newReadableCode}`);
       await loadProfileAndWorkspaces();
     } catch (err) {
       console.error('Failed to regenerate invite code:', {

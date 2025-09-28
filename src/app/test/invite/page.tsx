@@ -17,6 +17,8 @@ interface TestResult {
   apiResponse?: unknown;
   invitations?: unknown;
   createdInvitation?: unknown;
+  workspaceId?: string;
+  searchedCode?: string;
 }
 
 export default function TestInvitePage() {
@@ -292,7 +294,7 @@ export default function TestInvitePage() {
                     
                   const { data, error } = await supabase
                     .from('invitations')
-                    .select('id, code, token, active, created_at')
+                    .select('id, code, token, active, created_at, uses_count')
                     .eq('workspace_id', profile?.workspace_id)
                     .order('created_at', { ascending: false });
                     
@@ -300,6 +302,7 @@ export default function TestInvitePage() {
                     success: !error,
                     message: `Found ${data?.length || 0} invitations for your workspace`,
                     invitations: data,
+                    workspaceId: profile?.workspace_id,
                     error
                   });
                 } catch (err) {
@@ -312,6 +315,54 @@ export default function TestInvitePage() {
               variant="outline"
             >
               Debug Current Invitations
+            </Button>
+            
+            <Button 
+              onClick={async () => {
+                if (!testCode) {
+                  setResult({ success: false, message: 'Please enter a code to test first' });
+                  return;
+                }
+                
+                setLoading(true);
+                try {
+                  // Test if the code exists and is active
+                  const { data: invitation, error } = await supabase
+                    .from('invitations')
+                    .select('*')
+                    .eq('code', testCode.toUpperCase())
+                    .eq('active', true)
+                    .single();
+                    
+                  console.log('Join test result:', { invitation, error });
+                  
+                  if (error || !invitation) {
+                    setResult({
+                      success: false,
+                      message: `Code "${testCode.toUpperCase()}" not found or inactive`,
+                      searchedCode: testCode.toUpperCase(),
+                      error
+                    });
+                    return;
+                  }
+                  
+                  setResult({
+                    success: true,
+                    message: `Code "${testCode.toUpperCase()}" found and active!`,
+                    invitation,
+                    searchedCode: testCode.toUpperCase()
+                  });
+                  
+                } catch (err) {
+                  setResult({ success: false, message: 'Join test failed', error: err });
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading || !testCode}
+              variant="outline"
+            >
+              Test If Code Can Join
             </Button>
           </div>
           

@@ -7,8 +7,9 @@ import supabase from '../../../../lib/supabase';
 function JoinWorkspaceForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const token = params.get('token');
-  const [code, setCode] = useState('');
+  const token = params.get('token'); // UUID from old links
+  const codeParam = params.get('code'); // Human-readable code from new links
+  const [code, setCode] = useState(codeParam || '');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -91,9 +92,10 @@ function JoinWorkspaceForm() {
         </p>
         <input
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
           placeholder="ABC123"
-          className="w-full mb-4 rounded-md border px-3 py-2 tracking-widest font-mono"
+          maxLength={6}
+          className="w-full mb-4 rounded-md border px-3 py-2 tracking-widest font-mono uppercase text-center"
         />
         {error ? <p className="text-sm text-red-600 mb-3">{error}</p> : null}
         <button
