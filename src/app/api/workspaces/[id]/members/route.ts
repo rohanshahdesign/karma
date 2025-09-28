@@ -14,9 +14,9 @@ import {
 import {
   getWorkspace,
   getProfilesByWorkspace,
-  createInvitation,
   isAdminOfWorkspace,
 } from '../../../../../lib/database';
+import { createInvitation } from '../../../../../lib/database-server';
 import { CreateInvitationInput } from '../../../../../lib/types';
 
 // GET /api/workspaces/[id]/members - List workspace members

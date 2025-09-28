@@ -2,7 +2,7 @@
 // GET /api/debug/invitations - Test invitation lookup with server-side client
 
 import { NextResponse } from 'next/server';
-import { supabaseServer } from '../../../../lib/supabase-server';
+import { debugInvitationLookup } from '../../../../lib/database-server';
 
 interface CodeResult {
   data: unknown;
@@ -13,49 +13,32 @@ export async function GET() {
   try {
     console.log('=== DEBUG API INVITATIONS ===');
     
-    // Test 1: Check if server client is working
-    console.log('Testing server-side Supabase client...');
+    // Use the debug function from database-server
+    const debugResult = await debugInvitationLookup('TEST');
     
-    // Test 2: Get all invitations (should bypass RLS)
-    const { data: allInvitations, error: allError } = await supabaseServer
-      .from('invitations')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(10);
-      
-    console.log('All invitations result:', { data: allInvitations, error: allError });
+    const { allInvitations, exactMatches, iLikeMatches, activeCheck } = debugResult;
     
-    // Test 3: Check specific codes
+    // Test specific codes
     const testCodes = ['0E03JN', 'C3F6O7'];
     const codeResults: Record<string, CodeResult> = {};
     
     for (const code of testCodes) {
-      const { data: codeData, error: codeError } = await supabaseServer
-        .from('invitations')
-        .select('*')
-        .eq('code', code);
-        
-      codeResults[code] = { data: codeData, error: codeError };
-      console.log(`Code ${code} result:`, codeResults[code]);
+      const codeDebug = await debugInvitationLookup(code);
+      codeResults[code] = { 
+        data: codeDebug.exactMatches, 
+        error: null 
+      };
     }
-    
-    // Test 4: Check active field types
-    const { data: sample, error: sampleError } = await supabaseServer
-      .from('invitations')
-      .select('id, code, active, created_at')
-      .limit(5);
-      
-    console.log('Sample invitations:', { data: sample, error: sampleError });
     
     return NextResponse.json({
       success: true,
-      serverClientWorking: !!allInvitations || !!allError,
+      serverClientWorking: !!allInvitations,
       totalInvitations: allInvitations?.length || 0,
       allInvitations,
-      allError,
+      allError: null,
       codeResults,
-      sample,
-      sampleError,
+      sample: activeCheck,
+      sampleError: null,
       environment: {
         hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
         hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,

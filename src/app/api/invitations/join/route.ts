@@ -8,10 +8,12 @@ import {
 } from '../../../../lib/api-utils';
 import {
   getInvitationByCode,
-  createProfile,
-  deletePendingUser,
-  updateInvitation,
   debugInvitationLookup,
+  updateInvitation,
+  createProfile,
+} from '../../../../lib/database-server';
+import {
+  deletePendingUser,
 } from '../../../../lib/database';
 import { JoinWorkspaceInput } from '../../../../lib/types';
 
