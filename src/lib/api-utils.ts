@@ -8,6 +8,7 @@ import { ApiResponse, PaginatedResponse } from './types';
 import { DatabaseError } from './database';
 import { Profile } from './supabase-types';
 import { supabase } from './supabase';
+import { supabaseServer } from './supabase-server';
 
 // ============================================================================
 // REQUEST UTILITIES
@@ -70,15 +71,16 @@ export async function getAuthenticatedUser(): Promise<{
 }
 
 // Special auth function for join API that doesn't require existing profile
-export async function getAuthenticatedUserForJoin(): Promise<{
+export async function getAuthenticatedUserForJoin(req: NextRequest): Promise<{
   id: string;
   email: string;
   profile: Profile | null;
 }> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      const error = new Error('User not authenticated');
+    // Get the authorization header
+    const authorization = req.headers.get('authorization');
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+      const error = new Error('No valid authorization header');
       Object.assign(error, {
         code: ERROR_CODES.UNAUTHORIZED,
         status: HTTP_STATUS.UNAUTHORIZED,
@@ -86,8 +88,32 @@ export async function getAuthenticatedUserForJoin(): Promise<{
       throw error;
     }
 
-    // Try to get profile, but don't fail if it doesn't exist
-    const profile = await getCurrentProfile();
+    const token = authorization.replace('Bearer ', '');
+    
+    // Use server-side supabase client to get user from token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      const error = new Error('Invalid or expired token');
+      Object.assign(error, {
+        code: ERROR_CODES.UNAUTHORIZED,
+        status: HTTP_STATUS.UNAUTHORIZED,
+      });
+      throw error;
+    }
+
+    // Try to get profile using server client, but don't fail if it doesn't exist
+    let profile = null;
+    try {
+      const { data: profileData } = await supabaseServer
+        .from('profiles')
+        .select('*')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+      profile = profileData;
+    } catch (err) {
+      console.log('No profile found for user:', user.id);
+      // Ignore profile lookup errors for join API
+    }
     
     return {
       id: user.id,
@@ -328,7 +354,7 @@ export function withJoinAuth(
 ) {
   return async (req: NextRequest): Promise<NextResponse> => {
     try {
-      const user = await getAuthenticatedUserForJoin();
+      const user = await getAuthenticatedUserForJoin(req);
       (req as AuthenticatedJoinRequest).user = user;
       return await handler(req as AuthenticatedJoinRequest);
     } catch (error) {

@@ -40,10 +40,17 @@ function JoinWorkspaceForm() {
     // Call the server-side join API instead of direct database queries
     console.log('Calling join API with code:', invCode.toUpperCase());
     
+    // Get the user's session token
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('No active session found');
+    }
+    
     const response = await fetch('/api/invitations/join', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({
         invite_code: invCode.toUpperCase()
