@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getCurrentProfile } from '@/lib/permissions';
-import { Profile } from '@/lib/supabase-types';
+import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { formatCurrencyAmount } from '@/lib/currency';
 import {
   Card,
   CardContent,
@@ -36,6 +38,7 @@ interface LeaderboardEntry {
 type Period = 'week' | 'month' | 'all_time';
 
 export default function LeaderboardPage() {
+  const { currencyName } = useCurrency();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);

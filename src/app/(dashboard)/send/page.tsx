@@ -44,6 +44,8 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { formatCurrencyAmount, CURRENCY_PATTERNS } from '@/lib/currency';
 
 interface WorkspaceMember {
   id: string;
@@ -74,6 +76,7 @@ const PREDEFINED_REASONS = [
 
 export default function SendKarmaPage() {
   const router = useRouter();
+  const { currencyName } = useCurrency();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [selectedMember, setSelectedMember] = useState<string>('');
@@ -185,7 +188,7 @@ export default function SendKarmaPage() {
       toast.success(
         <div className="flex items-center space-x-2">
           <CheckCircle className="h-5 w-5 text-green-600" />
-          <span>Successfully sent {numericAmount} karma!</span>
+          <span>Successfully sent {formatCurrencyAmount(numericAmount, currencyName)}!</span>
         </div>
       );
       
@@ -207,7 +210,7 @@ export default function SendKarmaPage() {
       }
       
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to send karma');
+      toast.error(err instanceof Error ? err.message : `Failed to send ${currencyName}`);
     } finally {
       setSending(false);
     }
@@ -261,7 +264,7 @@ export default function SendKarmaPage() {
       {/* Header */}
       <div className="space-y-1">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-          Send Karma
+          {CURRENCY_PATTERNS.SEND_KARMA(currencyName)}
         </h1>
         <p className="text-gray-600">
           Recognize your teammates for their great work
@@ -280,7 +283,7 @@ export default function SendKarmaPage() {
               <div className="text-2xl font-bold text-blue-600">
                 {balanceInfo.giving_balance}
               </div>
-              <p className="text-xs text-muted-foreground">Karma points</p>
+              <p className="text-xs text-muted-foreground">{currencyName} points</p>
             </CardContent>
           </Card>
 
@@ -318,7 +321,7 @@ export default function SendKarmaPage() {
       {/* Send Form */}
       <Card>
         <CardHeader>
-          <CardTitle>Send Karma</CardTitle>
+          <CardTitle>{CURRENCY_PATTERNS.SEND_KARMA(currencyName)}</CardTitle>
           <CardDescription>
             Choose a teammate, amount, and reason to recognize their contribution
           </CardDescription>
@@ -363,13 +366,13 @@ export default function SendKarmaPage() {
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="Enter karma amount"
+                placeholder={`Enter ${currencyName} amount`}
                 min="1"
                 className="mt-1"
                 required
               />
               <p className="text-sm text-gray-500 mt-1">
-                Available: {balanceInfo?.giving_balance || 0} karma
+                Available: {formatCurrencyAmount(balanceInfo?.giving_balance || 0, currencyName)}
               </p>
             </div>
 
@@ -378,7 +381,7 @@ export default function SendKarmaPage() {
               <Label htmlFor="reason">Reason *</Label>
               <Select value={selectedReason} onValueChange={setSelectedReason}>
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Why are you sending karma?" />
+                  <SelectValue placeholder={`Why are you sending ${currencyName}?`} />
                 </SelectTrigger>
                 <SelectContent>
                   {PREDEFINED_REASONS.map((reason) => (
@@ -452,7 +455,7 @@ export default function SendKarmaPage() {
               ) : (
                 <>
                   <Send className="mr-2 h-4 w-4" />
-                  Send Karma
+                  {CURRENCY_PATTERNS.SEND_KARMA(currencyName)}
                 </>
               )}
             </Button>
@@ -487,7 +490,7 @@ export default function SendKarmaPage() {
                   <div className="text-2xl font-bold text-blue-600">
                     +{amount}
                   </div>
-                  <div className="text-sm text-gray-500">karma</div>
+                  <div className="text-sm text-gray-500">{currencyName}</div>
                 </div>
               )}
             </div>

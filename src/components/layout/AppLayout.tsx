@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { getCurrentProfile } from '@/lib/permissions';
 import { Profile } from '@/lib/supabase-types';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -57,6 +58,7 @@ const navItems: NavItem[] = [
 export default function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const { currencyName } = useCurrency();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -89,7 +91,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   <span className="text-white font-bold text-sm">K</span>
                 </div>
                 <span className="ml-3 text-xl font-semibold text-gray-900">
-                  Karma
+                  {currencyName.charAt(0).toUpperCase() + currencyName.slice(1)}
                 </span>
               </div>
             </div>
@@ -170,7 +172,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       <span className="text-white font-bold text-sm">K</span>
                     </div>
                     <span className="ml-3 text-xl font-semibold text-gray-900">
-                      Karma
+                      {currencyName.charAt(0).toUpperCase() + currencyName.slice(1)}
                     </span>
                   </div>
                 </div>

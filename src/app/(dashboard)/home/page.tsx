@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase';
 import { getCurrentProfile } from '@/lib/permissions';
 import { getProfileBalance, getDailyLimitInfo, type BalanceInfo, type DailyLimitInfo } from '@/lib/balance';
 import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { formatCurrencyAmount, CURRENCY_PATTERNS } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -30,6 +32,7 @@ import {
 
 export default function DashboardHomePage() {
   const router = useRouter();
+  const { currencyName } = useCurrency();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null);
   const [dailyLimitInfo, setDailyLimitInfo] = useState<DailyLimitInfo | null>(null);
@@ -141,7 +144,7 @@ export default function DashboardHomePage() {
           Welcome back, {currentProfile.full_name?.split(' ')[0] || 'there'}!
         </h1>
         <p className="text-gray-600">
-          Here&apos;s your karma activity summary
+          Here&apos;s your {currencyName} activity summary
         </p>
       </div>
 
@@ -172,7 +175,7 @@ export default function DashboardHomePage() {
               {balanceInfo?.redeemable_balance || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Total earned karma
+              Total earned {currencyName}
             </p>
           </CardContent>
         </Card>
@@ -209,7 +212,7 @@ export default function DashboardHomePage() {
           <Button asChild className="flex-1 md:flex-none">
             <Link href="/send">
               <Send className="mr-2 h-4 w-4" />
-              Send Karma
+              {CURRENCY_PATTERNS.SEND_KARMA(currencyName)}
             </Link>
           </Button>
           <Button variant="outline" asChild className="flex-1 md:flex-none">
@@ -232,7 +235,7 @@ export default function DashboardHomePage() {
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
           <CardDescription>
-            Your latest karma transactions
+            Your latest {currencyName} transactions
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -255,7 +258,7 @@ export default function DashboardHomePage() {
                     </Avatar>
                     <div className="flex-1 space-y-1">
                       <p className="text-sm font-medium leading-none">
-                        {isSent ? 'You sent' : 'You received'} {transaction.amount} karma {isSent ? 'to' : 'from'} {otherProfile?.full_name || otherProfile?.email || 'Someone'}
+                        {isSent ? 'You sent' : 'You received'} {formatCurrencyAmount(transaction.amount, currencyName)} {isSent ? 'to' : 'from'} {otherProfile?.full_name || otherProfile?.email || 'Someone'}
                       </p>
                       {transaction.message && (
                         <p className="text-sm text-muted-foreground">
@@ -277,12 +280,12 @@ export default function DashboardHomePage() {
                 No transactions yet
               </h3>
               <p className="text-gray-600 mb-4">
-                Start by sending some karma to your teammates!
+                Start by sending some {currencyName} to your teammates!
               </p>
               <Button asChild>
                 <Link href="/send">
                   <Send className="mr-2 h-4 w-4" />
-                  Send Your First Karma
+                  Send Your First {currencyName.charAt(0).toUpperCase() + currencyName.slice(1)}
                 </Link>
               </Button>
             </div>
