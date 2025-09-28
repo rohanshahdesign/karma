@@ -2,6 +2,7 @@
 // Provides type-safe database operations with error handling
 
 import { supabase } from './supabase';
+import { supabaseServer } from './supabase-server';
 import {
   Profile,
   Workspace,
@@ -642,8 +643,8 @@ export async function debugInvitationLookup(code: string) {
   console.log('=== DEBUG INVITATION LOOKUP ===');
   console.log('Looking for code:', code);
   
-  // Test 1: Check all invitations
-  const { data: allInvitations, error: allError } = await supabase
+  // Test 1: Check all invitations (using server client to bypass RLS)
+  const { data: allInvitations, error: allError } = await supabaseServer
     .from('invitations')
     .select('*')
     .order('created_at', { ascending: false })
@@ -652,7 +653,7 @@ export async function debugInvitationLookup(code: string) {
   console.log('Recent invitations in database:', allInvitations);
   
   // Test 2: Search by exact code (case sensitive)
-  const { data: exactMatches, error: exactError } = await supabase
+  const { data: exactMatches, error: exactError } = await supabaseServer
     .from('invitations')
     .select('*')
     .eq('code', code);
@@ -660,7 +661,7 @@ export async function debugInvitationLookup(code: string) {
   console.log('Exact code matches:', exactMatches);
   
   // Test 3: Search case-insensitive
-  const { data: iLikeMatches, error: iLikeError } = await supabase
+  const { data: iLikeMatches, error: iLikeError } = await supabaseServer
     .from('invitations')
     .select('*')
     .ilike('code', code);
@@ -668,7 +669,7 @@ export async function debugInvitationLookup(code: string) {
   console.log('Case-insensitive matches:', iLikeMatches);
   
   // Test 4: Check active field values
-  const { data: activeCheck, error: activeError } = await supabase
+  const { data: activeCheck, error: activeError } = await supabaseServer
     .from('invitations')
     .select('code, active, created_at')
     .limit(5);
@@ -687,15 +688,15 @@ export async function getInvitationByCode(code: string): Promise<Invitation> {
   console.log('Searching for invitation with code:', code);
   
   // First, let's see if the code exists at all (ignoring active status)
-  const { data: allMatches, error: searchError } = await supabase
+  const { data: allMatches, error: searchError } = await supabaseServer
     .from('invitations')
     .select('*')
     .eq('code', code);
     
   console.log('All invitations with code:', code, allMatches);
   
-  // Now search for active ones
-  const { data, error } = await supabase
+  // Now search for active ones using server client to bypass RLS
+  const { data, error } = await supabaseServer
     .from('invitations')
     .select('*')
     .eq('code', code)
@@ -713,7 +714,7 @@ export async function getInvitationByCode(code: string): Promise<Invitation> {
 }
 
 export async function getInvitationByToken(token: string): Promise<Invitation> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseServer
     .from('invitations')
     .select('*')
     .eq('token', token)
@@ -727,7 +728,7 @@ export async function getInvitationByToken(token: string): Promise<Invitation> {
 export async function createInvitation(
   invitation: InvitationInsert
 ): Promise<Invitation> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseServer
     .from('invitations')
     .insert(invitation)
     .select()
@@ -741,7 +742,7 @@ export async function updateInvitation(
   id: string,
   updates: InvitationUpdate
 ): Promise<Invitation> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseServer
     .from('invitations')
     .update(updates)
     .eq('id', id)
@@ -753,7 +754,7 @@ export async function updateInvitation(
 }
 
 export async function deleteInvitation(id: string): Promise<void> {
-  const { error } = await supabase.from('invitations').delete().eq('id', id);
+  const { error } = await supabaseServer.from('invitations').delete().eq('id', id);
 
   if (error) handleDatabaseError(error);
 }
@@ -766,7 +767,7 @@ export async function getInvitationsByWorkspace(
   const limit = Math.min(config?.limit || 20, 100);
   const offset = (page - 1) * limit;
 
-  let query = supabase
+  let query = supabaseServer
     .from('invitations')
     .select(
       `
