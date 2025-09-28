@@ -339,7 +339,7 @@ export async function getProfileByAuthUserIdSafe(
 }
 
 export async function createProfile(profile: ProfileInsert): Promise<Profile> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseServer
     .from('profiles')
     .insert(profile)
     .select()

@@ -98,6 +98,10 @@ export async function getAuthenticatedUserForJoin(req: NextRequest): Promise<{
     
     // Use server-side supabase client to get user from token
     console.log('Validating token with server-side client...');
+    console.log('supabaseServer type:', typeof supabaseServer);
+    console.log('supabaseServer.auth type:', typeof supabaseServer.auth);
+    console.log('supabaseServer.from type:', typeof supabaseServer.from);
+    
     const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token);
     
     console.log('Auth result:', { user: !!user, error: authError });
