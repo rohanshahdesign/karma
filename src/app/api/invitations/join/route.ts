@@ -28,13 +28,13 @@ export const POST = withErrorHandling(
       );
     }
 
-    // Validate invite code
+    // Validate invite code (human-readable 6-char code)
     if (!body.invite_code || body.invite_code.length !== 6) {
       return createSuccessResponse(null, 'Invalid invite code format', 400);
     }
 
     try {
-      // Get invitation by code
+      // Get invitation by code (human-readable)
       const invitation = await getInvitationByCode(
         body.invite_code.toUpperCase()
       );

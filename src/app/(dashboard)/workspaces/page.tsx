@@ -57,6 +57,16 @@ export default function WorkspacesPage() {
     currency_name?: string;
   }>({});
 
+  const generateInviteCode = () => {
+    // Generate a proper 6-character alphanumeric code
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
   const loadProfileAndWorkspaces = useCallback(async () => {
     try {
       setLoading(true);
@@ -93,7 +103,7 @@ export default function WorkspacesPage() {
 
       if (membersError) throw membersError;
 
-      // Get active invitation codes
+      // Get active invitation codes (human-readable codes)
       const { data: invitations } = await supabase
         .from('invitations')
         .select('code')
@@ -101,6 +111,28 @@ export default function WorkspacesPage() {
         .eq('active', true)
         .limit(1)
         .single();
+
+      // If no invitation exists, create one
+      let inviteCode = invitations?.code;
+      if (!inviteCode && profileData.role === 'super_admin') {
+        const readableCode = generateInviteCode();
+        // token is auto-generated UUID by database
+        
+        const { error: createInviteError } = await supabase
+          .from('invitations')
+          .insert({
+            workspace_id: profileData.workspace_id,
+            code: readableCode,          // Human-readable 6-char code
+            created_by_profile_id: profileData.id,
+            uses_count: 0,
+            active: true
+            // token will be auto-generated as UUID by database
+          });
+        
+        if (!createInviteError) {
+          inviteCode = readableCode;
+        }
+      }
 
       // Construct workspace with members
       const workspaceWithMembers: WorkspaceWithMembers = {
@@ -117,7 +149,7 @@ export default function WorkspacesPage() {
           auth_user: { id: member.auth_user_id, email: member.email, created_at: member.created_at } as { id: string; email: string; created_at: string }
         })),
         role: profileData.role as 'super_admin' | 'admin' | 'employee',
-        invite_code: invitations?.code
+        invite_code: inviteCode
       };
 
       setWorkspaces([workspaceWithMembers]);
@@ -224,40 +256,71 @@ export default function WorkspacesPage() {
     }
   };
 
+  const copyInviteCode = (inviteCode: string) => {
+    navigator.clipboard.writeText(inviteCode);
+    toast.success('Invite code copied to clipboard!');
+  };
+
   const copyInviteLink = (inviteCode: string) => {
-    const inviteLink = `${window.location.origin}/onboarding?invite_code=${inviteCode}`;
+    const inviteLink = `${window.location.origin}/onboarding/join?token=${inviteCode}`;
     navigator.clipboard.writeText(inviteLink);
     toast.success('Invite link copied to clipboard!');
   };
 
   const handleRegenerateInviteCode = async (workspaceId: string) => {
     try {
-      // Generate a new random invite code on the client side only
-      const timestamp = Date.now().toString(36);
-      const randomPart = crypto.getRandomValues(new Uint8Array(8))
-        .reduce((acc, byte) => acc + byte.toString(36), '');
-      const newCode = `${timestamp}-${randomPart}`.substring(0, 20);
+      const newReadableCode = generateInviteCode();
       
-      // Update the invitation code
-      const { error } = await supabase
+      // First, try to update existing invitation
+      const { error: updateError } = await supabase
         .from('invitations')
         .update({ 
-          code: newCode, 
-          token: newCode
+          code: newReadableCode    // Update human-readable code
+          // token remains the same (UUID)
         })
         .eq('workspace_id', workspaceId)
         .eq('active', true);
         
-      if (error) {
-        console.error('Error updating invite code:', error);
-        throw error;
+      if (updateError) {
+        // If update fails, create a new invitation
+        console.log('No existing invitation found, creating new one');
+        
+        if (!currentProfile?.id) {
+          throw new Error('User profile not found');
+        }
+        
+        const { error: insertError } = await supabase
+          .from('invitations')
+          .insert({
+            workspace_id: workspaceId,
+            code: newReadableCode,          // Human-readable code
+            created_by_profile_id: currentProfile.id,
+            uses_count: 0,
+            active: true
+            // token will be auto-generated as UUID by database
+          });
+          
+        if (insertError) {
+          console.error('Error creating invite:', {
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint,
+            code: insertError.code,
+            full: insertError
+          });
+          throw insertError;
+        }
       }
       
-      toast.success('Invite code regenerated.');
+      toast.success('Invite code regenerated successfully!');
       await loadProfileAndWorkspaces();
     } catch (err) {
-      console.error('Failed to regenerate invite code:', err);
-      toast.error('Could not regenerate invite code.');
+      console.error('Failed to regenerate invite code:', {
+        error: err,
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined
+      });
+      toast.error(`Could not regenerate invite code: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -438,60 +501,74 @@ export default function WorkspacesPage() {
 
                       <div className="border-t pt-4">
                         <h4 className="font-semibold mb-3">Invite Members</h4>
-                        <div className="space-y-3">
-                          {/* Invite Code Display */}
+                        <div className="space-y-4">
+                          {/* Current Invite Code */}
                           <div>
-                            <Label className="text-sm text-gray-600 mb-2 block">Invite Code</Label>
+                            <Label className="text-sm text-gray-600 mb-2 block">Current Invite Code</Label>
                             <div className="p-3 bg-gray-50 rounded-lg border">
-                              <span className="font-mono text-lg font-bold tracking-wider">
-                                {workspace.invite_code || 'No invite code'}
-                              </span>
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono text-lg font-bold tracking-wider">
+                                  {workspace.invite_code || 'No invite code'}
+                                </span>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      workspace.invite_code && copyInviteCode(workspace.invite_code)
+                                    }
+                                  >
+                                    <Copy className="mr-1 h-3 w-3" />
+                                    Copy
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (workspace.invite_code) {
+                                        copyInviteLink(workspace.invite_code);
+                                      }
+                                    }}
+                                  >
+                                    <ExternalLink className="mr-1 h-3 w-3" />
+                                    Link
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
                           </div>
                           
-                          {/* Copy Buttons - Stack on mobile */}
-                          <div className="flex flex-col sm:flex-row gap-2">
-                            <Button
-                              variant="outline"
-                              onClick={() =>
-                                workspace.invite_code && copyInviteLink(workspace.invite_code)
-                              }
-                              className="w-full sm:w-auto"
-                            >
-                              <Copy className="mr-2 h-4 w-4" />
-                              Copy Code
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                if (workspace.invite_code) {
-                                  copyInviteLink(workspace.invite_code);
+                          {/* Management Actions */}
+                          {canManageWorkspace(workspace.role) && (
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <Button
+                                variant="secondary"
+                                onClick={() =>
+                                  handleRegenerateInviteCode(workspace.id)
                                 }
-                              }}
-                              className="w-full sm:w-auto"
-                            >
-                              <ExternalLink className="mr-2 h-4 w-4" />
-                              Copy Invite Link
-                            </Button>
-                          </div>
+                                className="w-full sm:w-auto"
+                              >
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Generate New Code
+                              </Button>
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  // TODO: Show all active invitations dialog
+                                  toast.info('Invite management coming soon!');
+                                }}
+                                className="w-full sm:w-auto"
+                              >
+                                <Settings className="mr-2 h-4 w-4" />
+                                Manage Invites
+                              </Button>
+                            </div>
+                          )}
+                          
+                          <p className="text-sm text-gray-500">
+                            Share the invite code or link with team members to invite them to your workspace.
+                          </p>
                         </div>
-                        <p className="text-sm text-gray-500 mt-2">
-                          Share the invite code or link with team members to
-                          invite them to your workspace.
-                        </p>
-                        {canManageWorkspace(workspace.role) && (
-                          <div className="mt-4 flex gap-2">
-                            <Button
-                              variant="secondary"
-                              onClick={() =>
-                                handleRegenerateInviteCode(workspace.id)
-                              }
-                            >
-                              <RefreshCw className="mr-2 h-4 w-4" /> Regenerate
-                              Invite Code
-                            </Button>
-                          </div>
-                        )}
                       </div>
                     </TabsContent>
 
