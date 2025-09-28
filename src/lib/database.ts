@@ -637,7 +637,64 @@ export async function getInvitation(id: string): Promise<Invitation> {
   return data;
 }
 
+// Debug function to test invitation lookup
+export async function debugInvitationLookup(code: string) {
+  console.log('=== DEBUG INVITATION LOOKUP ===');
+  console.log('Looking for code:', code);
+  
+  // Test 1: Check all invitations
+  const { data: allInvitations, error: allError } = await supabase
+    .from('invitations')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(10);
+    
+  console.log('Recent invitations in database:', allInvitations);
+  
+  // Test 2: Search by exact code (case sensitive)
+  const { data: exactMatches, error: exactError } = await supabase
+    .from('invitations')
+    .select('*')
+    .eq('code', code);
+    
+  console.log('Exact code matches:', exactMatches);
+  
+  // Test 3: Search case-insensitive
+  const { data: iLikeMatches, error: iLikeError } = await supabase
+    .from('invitations')
+    .select('*')
+    .ilike('code', code);
+    
+  console.log('Case-insensitive matches:', iLikeMatches);
+  
+  // Test 4: Check active field values
+  const { data: activeCheck, error: activeError } = await supabase
+    .from('invitations')
+    .select('code, active, created_at')
+    .limit(5);
+    
+  console.log('Sample active field values:', activeCheck);
+  
+  return {
+    allInvitations,
+    exactMatches,
+    iLikeMatches,
+    activeCheck
+  };
+}
+
 export async function getInvitationByCode(code: string): Promise<Invitation> {
+  console.log('Searching for invitation with code:', code);
+  
+  // First, let's see if the code exists at all (ignoring active status)
+  const { data: allMatches, error: searchError } = await supabase
+    .from('invitations')
+    .select('*')
+    .eq('code', code);
+    
+  console.log('All invitations with code:', code, allMatches);
+  
+  // Now search for active ones
   const { data, error } = await supabase
     .from('invitations')
     .select('*')
@@ -645,7 +702,13 @@ export async function getInvitationByCode(code: string): Promise<Invitation> {
     .eq('active', true)
     .single();
 
-  if (error) handleDatabaseError(error);
+  console.log('Active invitation search result:', { data, error });
+
+  if (error) {
+    console.error('Database error finding invitation:', error);
+    handleDatabaseError(error);
+  }
+  
   return data;
 }
 

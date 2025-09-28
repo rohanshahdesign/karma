@@ -11,6 +11,7 @@ import {
   createProfile,
   deletePendingUser,
   updateInvitation,
+  debugInvitationLookup,
 } from '../../../../lib/database';
 import { JoinWorkspaceInput } from '../../../../lib/types';
 
@@ -43,6 +44,9 @@ export const POST = withErrorHandling(
     }
 
     try {
+      // Debug the invitation lookup first
+      await debugInvitationLookup(body.invite_code.toUpperCase());
+      
       // Get invitation by code (human-readable)
       const invitation = await getInvitationByCode(
         body.invite_code.toUpperCase()
