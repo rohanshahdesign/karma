@@ -16,6 +16,7 @@ function JoinWorkspaceForm() {
   const join = useCallback(async (invCode: string) => {
     console.log('Attempting to join with code:', invCode);
     
+    // Check if user is authenticated
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -36,50 +37,26 @@ function JoinWorkspaceForm() {
       return;
     }
 
-    const { data: inv, error: invErr } = await supabase
-      .from('invitations')
-      .select('*')
-      .eq('code', invCode.toUpperCase())
-      .eq('active', true)
-      .maybeSingle();
-      
-    console.log('Invitation lookup result:', { invitation: inv, error: invErr, searchedCode: invCode.toUpperCase() });
+    // Call the server-side join API instead of direct database queries
+    console.log('Calling join API with code:', invCode.toUpperCase());
     
-    if (invErr) {
-      console.error('Database error looking up invitation:', invErr);
-      throw invErr;
-    }
-    
-    if (!inv) {
-      throw new Error(`Invalid code: "${invCode.toUpperCase()}" not found or inactive`);
-    }
-
-    console.log('Creating profile for workspace:', inv.workspace_id);
-    
-    // Create profile in the workspace as employee
-    const { error: profErr } = await supabase.from('profiles').insert({
-      auth_user_id: user.id,
-      workspace_id: inv.workspace_id,
-      email: user.email || '',
-      role: 'employee',
-      giving_balance: 100,
-      redeemable_balance: 0,
+    const response = await fetch('/api/invitations/join', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        invite_code: invCode.toUpperCase()
+      })
     });
     
-    if (profErr) {
-      console.error('Error creating profile:', profErr);
-      throw profErr;
-    }
-
-    // Remove pending entry if exists
-    await supabase.from('pending_users').delete().eq('auth_user_id', user.id);
+    const result = await response.json();
+    console.log('Join API response:', result);
     
-    // Increment invitation usage
-    await supabase
-      .from('invitations')
-      .update({ uses_count: inv.uses_count + 1 })
-      .eq('id', inv.id);
-
+    if (!result.success) {
+      throw new Error(result.error || result.message || 'Failed to join workspace');
+    }
+    
     console.log('Successfully joined workspace, redirecting to home');
     router.push('/home');
   }, [router]);
@@ -90,14 +67,22 @@ function JoinWorkspaceForm() {
       setLoading(true);
       setError(null);
       try {
-        const { data: inv, error: invErr } = await supabase
-          .from('invitations')
-          .select('*')
-          .eq('token', token)
-          .eq('active', true)
-          .maybeSingle();
-        if (invErr || !inv) throw invErr ?? new Error('Invalid invite');
-        await join(inv.code);
+        // Call API to lookup token and get the code
+        const response = await fetch(`/api/debug/invitations`);
+        const debugResult = await response.json();
+        
+        // Find the invitation with matching token
+        const invitation = debugResult.allInvitations?.find(
+          (inv: { token: string; active: boolean; code: string }) => 
+            inv.token === token && inv.active
+        );
+        
+        if (!invitation) {
+          throw new Error('Invalid or expired invite link');
+        }
+        
+        // Use the code from the token lookup
+        await join(invitation.code);
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Invalid invite');
       } finally {
