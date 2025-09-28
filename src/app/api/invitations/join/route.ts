@@ -120,7 +120,7 @@ export const POST = withErrorHandling(
       try {
         await deletePendingUser(req.user.id);
         console.log('Pending user entry removed');
-      } catch (err) {
+      } catch {
         console.log('No pending user entry to remove');
         // Ignore if pending user doesn't exist
       }

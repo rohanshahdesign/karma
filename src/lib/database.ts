@@ -644,7 +644,7 @@ export async function debugInvitationLookup(code: string) {
   console.log('Looking for code:', code);
   
   // Test 1: Check all invitations (using server client to bypass RLS)
-  const { data: allInvitations, error: allError } = await supabaseServer
+  const { data: allInvitations } = await supabaseServer
     .from('invitations')
     .select('*')
     .order('created_at', { ascending: false })
@@ -653,7 +653,7 @@ export async function debugInvitationLookup(code: string) {
   console.log('Recent invitations in database:', allInvitations);
   
   // Test 2: Search by exact code (case sensitive)
-  const { data: exactMatches, error: exactError } = await supabaseServer
+  const { data: exactMatches } = await supabaseServer
     .from('invitations')
     .select('*')
     .eq('code', code);
@@ -661,7 +661,7 @@ export async function debugInvitationLookup(code: string) {
   console.log('Exact code matches:', exactMatches);
   
   // Test 3: Search case-insensitive
-  const { data: iLikeMatches, error: iLikeError } = await supabaseServer
+  const { data: iLikeMatches } = await supabaseServer
     .from('invitations')
     .select('*')
     .ilike('code', code);
@@ -669,7 +669,7 @@ export async function debugInvitationLookup(code: string) {
   console.log('Case-insensitive matches:', iLikeMatches);
   
   // Test 4: Check active field values
-  const { data: activeCheck, error: activeError } = await supabaseServer
+  const { data: activeCheck } = await supabaseServer
     .from('invitations')
     .select('code, active, created_at')
     .limit(5);
@@ -688,7 +688,7 @@ export async function getInvitationByCode(code: string): Promise<Invitation> {
   console.log('Searching for invitation with code:', code);
   
   // First, let's see if the code exists at all (ignoring active status)
-  const { data: allMatches, error: searchError } = await supabaseServer
+  const { data: allMatches } = await supabaseServer
     .from('invitations')
     .select('*')
     .eq('code', code);

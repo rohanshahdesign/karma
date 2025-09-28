@@ -1,10 +1,15 @@
 // Debug API endpoint to test server-side database access
 // GET /api/debug/invitations - Test invitation lookup with server-side client
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { supabaseServer } from '../../../../lib/supabase-server';
 
-export async function GET(req: NextRequest) {
+interface CodeResult {
+  data: unknown;
+  error: unknown;
+}
+
+export async function GET() {
   try {
     console.log('=== DEBUG API INVITATIONS ===');
     
@@ -22,7 +27,7 @@ export async function GET(req: NextRequest) {
     
     // Test 3: Check specific codes
     const testCodes = ['0E03JN', 'C3F6O7'];
-    const codeResults = {};
+    const codeResults: Record<string, CodeResult> = {};
     
     for (const code of testCodes) {
       const { data: codeData, error: codeError } = await supabaseServer
