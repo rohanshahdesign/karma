@@ -77,9 +77,14 @@ export async function getAuthenticatedUserForJoin(req: NextRequest): Promise<{
   profile: Profile | null;
 }> {
   try {
+    console.log('=== JOIN AUTH DEBUG ===');
+    
     // Get the authorization header
     const authorization = req.headers.get('authorization');
+    console.log('Authorization header present:', !!authorization);
+    
     if (!authorization || !authorization.startsWith('Bearer ')) {
+      console.log('No valid authorization header');
       const error = new Error('No valid authorization header');
       Object.assign(error, {
         code: ERROR_CODES.UNAUTHORIZED,
@@ -89,10 +94,16 @@ export async function getAuthenticatedUserForJoin(req: NextRequest): Promise<{
     }
 
     const token = authorization.replace('Bearer ', '');
+    console.log('Token length:', token.length);
     
     // Use server-side supabase client to get user from token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    console.log('Validating token with server-side client...');
+    const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token);
+    
+    console.log('Auth result:', { user: !!user, error: authError });
+    
     if (authError || !user) {
+      console.log('Token validation failed:', authError);
       const error = new Error('Invalid or expired token');
       Object.assign(error, {
         code: ERROR_CODES.UNAUTHORIZED,
@@ -101,19 +112,26 @@ export async function getAuthenticatedUserForJoin(req: NextRequest): Promise<{
       throw error;
     }
 
+    console.log('User authenticated:', user.id, user.email);
+
     // Try to get profile using server client, but don't fail if it doesn't exist
     let profile = null;
     try {
-      const { data: profileData } = await supabaseServer
+      console.log('Looking up profile for user:', user.id);
+      const { data: profileData, error: profileError } = await supabaseServer
         .from('profiles')
         .select('*')
         .eq('auth_user_id', user.id)
         .maybeSingle();
+        
+      console.log('Profile lookup result:', { profile: !!profileData, error: profileError });
       profile = profileData;
     } catch (err) {
-      console.log('No profile found for user:', user.id);
+      console.log('Profile lookup exception:', err);
       // Ignore profile lookup errors for join API
     }
+    
+    console.log('Join auth complete:', { userId: user.id, hasProfile: !!profile });
     
     return {
       id: user.id,
@@ -121,6 +139,7 @@ export async function getAuthenticatedUserForJoin(req: NextRequest): Promise<{
       profile,
     };
   } catch (error) {
+    console.log('Join auth error:', error);
     // Re-throw auth errors
     if (
       error &&
