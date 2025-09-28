@@ -7,6 +7,7 @@ import { HTTP_STATUS, ERROR_CODES, ApiError } from './api-types';
 import { ApiResponse, PaginatedResponse } from './types';
 import { DatabaseError } from './database';
 import { Profile } from './supabase-types';
+import { supabase } from './supabase';
 
 // ============================================================================
 // REQUEST UTILITIES
@@ -17,6 +18,14 @@ export interface AuthenticatedRequest extends NextRequest {
     id: string;
     email: string;
     profile: Profile;
+  };
+}
+
+export interface AuthenticatedJoinRequest extends NextRequest {
+  user: {
+    id: string;
+    email: string;
+    profile: Profile | null;
   };
 }
 
@@ -42,6 +51,51 @@ export async function getAuthenticatedUser(): Promise<{
       profile,
     };
   } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'message' in error &&
+      'code' in error &&
+      'status' in error
+    ) {
+      throw error;
+    }
+    const newError = new Error('Authentication failed');
+    Object.assign(newError, {
+      code: ERROR_CODES.UNAUTHORIZED,
+      status: HTTP_STATUS.UNAUTHORIZED,
+    });
+    throw newError;
+  }
+}
+
+// Special auth function for join API that doesn't require existing profile
+export async function getAuthenticatedUserForJoin(): Promise<{
+  id: string;
+  email: string;
+  profile: Profile | null;
+}> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      const error = new Error('User not authenticated');
+      Object.assign(error, {
+        code: ERROR_CODES.UNAUTHORIZED,
+        status: HTTP_STATUS.UNAUTHORIZED,
+      });
+      throw error;
+    }
+
+    // Try to get profile, but don't fail if it doesn't exist
+    const profile = await getCurrentProfile();
+    
+    return {
+      id: user.id,
+      email: user.email || '',
+      profile,
+    };
+  } catch (error) {
+    // Re-throw auth errors
     if (
       error &&
       typeof error === 'object' &&
@@ -264,6 +318,36 @@ export function withAuth(
         );
       }
       return createServerErrorResponse('Authentication middleware failed');
+    }
+  };
+}
+
+// Special auth middleware for join API that allows users without profiles
+export function withJoinAuth(
+  handler: (req: AuthenticatedJoinRequest) => Promise<NextResponse>
+) {
+  return async (req: NextRequest): Promise<NextResponse> => {
+    try {
+      const user = await getAuthenticatedUserForJoin();
+      (req as AuthenticatedJoinRequest).user = user;
+      return await handler(req as AuthenticatedJoinRequest);
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'message' in error &&
+        'code' in error &&
+        'status' in error
+      ) {
+        const apiError = error as ApiError;
+        return createErrorResponse(
+          apiError.message,
+          apiError.code,
+          apiError.status,
+          apiError.details
+        );
+      }
+      return createServerErrorResponse('Join authentication middleware failed');
     }
   };
 }

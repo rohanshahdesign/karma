@@ -10,11 +10,17 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('auth_user_id', user.id)
-    .single();
+    .maybeSingle();
+
+  // Return null if no profile exists (don't throw error)
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error fetching profile:', error);
+    return null;
+  }
 
   return profile;
 }

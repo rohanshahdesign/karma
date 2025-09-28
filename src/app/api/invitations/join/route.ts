@@ -2,7 +2,7 @@
 // POST /api/invitations/join - Join workspace using invite code
 
 import {
-  withAuth,
+  withJoinAuth,
   withErrorHandling,
   createSuccessResponse,
 } from '../../../../lib/api-utils';
@@ -10,17 +10,26 @@ import {
   getInvitationByCode,
   createProfile,
   deletePendingUser,
+  updateInvitation,
 } from '../../../../lib/database';
 import { JoinWorkspaceInput } from '../../../../lib/types';
 
 // POST /api/invitations/join - Join workspace using invite code
 export const POST = withErrorHandling(
-  withAuth(async (req) => {
+  withJoinAuth(async (req) => {
     const { profile: currentProfile, email } = req.user;
     const body = (await req.json()) as JoinWorkspaceInput;
 
+    console.log('Join API called:', { 
+      userId: req.user.id, 
+      email: req.user.email, 
+      hasProfile: !!currentProfile,
+      inviteCode: body.invite_code 
+    });
+
     // Check if user already has a profile
     if (currentProfile) {
+      console.log('User already has profile, redirecting');
       return createSuccessResponse(
         null,
         'User already belongs to a workspace',
@@ -39,8 +48,18 @@ export const POST = withErrorHandling(
         body.invite_code.toUpperCase()
       );
 
+      console.log('Found invitation:', {
+        id: invitation.id,
+        code: invitation.code,
+        active: invitation.active,
+        workspaceId: invitation.workspace_id,
+        usesCount: invitation.uses_count,
+        maxUses: invitation.max_uses
+      });
+
       // Check if invitation is still active
       if (!invitation.active) {
+        console.log('Invitation not active');
         return createSuccessResponse(
           null,
           'Invitation is no longer active',
@@ -53,11 +72,13 @@ export const POST = withErrorHandling(
         invitation.expires_at &&
         new Date(invitation.expires_at) < new Date()
       ) {
+        console.log('Invitation expired');
         return createSuccessResponse(null, 'Invitation has expired', 400);
       }
 
       // Check if invitation has reached max uses
       if (invitation.max_uses && invitation.uses_count >= invitation.max_uses) {
+        console.log('Invitation max uses reached');
         return createSuccessResponse(
           null,
           'Invitation has reached maximum uses',
@@ -65,6 +86,8 @@ export const POST = withErrorHandling(
         );
       }
 
+      console.log('Creating profile for user:', req.user.id);
+      
       // Create profile for the user
       const newProfile = await createProfile({
         auth_user_id: req.user.id,
@@ -76,19 +99,36 @@ export const POST = withErrorHandling(
         active: true,
       });
 
+      console.log('Profile created successfully:', newProfile.id);
+
+      // Increment invitation usage count
+      try {
+        await updateInvitation(invitation.id, {
+          uses_count: invitation.uses_count + 1
+        });
+        console.log('Invitation uses count incremented');
+      } catch (err) {
+        console.error('Failed to increment invitation uses:', err);
+        // Don't fail the join if we can't update the count
+      }
+
       // Remove pending user entry if exists
       try {
         await deletePendingUser(req.user.id);
-      } catch {
+        console.log('Pending user entry removed');
+      } catch (err) {
+        console.log('No pending user entry to remove');
         // Ignore if pending user doesn't exist
       }
 
+      console.log('Join successful, returning profile');
       return createSuccessResponse(
         { profile: newProfile },
         'Successfully joined workspace',
         201
       );
     } catch (error) {
+      console.error('Join API error:', error);
       throw error;
     }
   })
