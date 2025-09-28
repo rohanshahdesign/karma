@@ -35,7 +35,8 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
 import { getCurrentProfile } from '@/lib/permissions';
 import { getTransactionsByProfile } from '@/lib/database';
-import { formatBalance } from '@/lib/balance';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { formatCurrencyAmount } from '@/lib/currency';
 
 type TransactionType = 'all' | 'sent' | 'received';
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
@@ -49,6 +50,7 @@ interface FilterState {
 }
 
 export default function TransactionsPage() {
+  const { currencyName } = useCurrency();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [transactions, setTransactions] = useState<TransactionWithProfiles[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,7 +276,7 @@ export default function TransactionsPage() {
                 Transaction History
               </h1>
               <p className="text-gray-600 mt-2">
-                View all your karma transactions and activity
+                View all your {currencyName.toLowerCase()} transactions and activity
               </p>
             </div>
             <Button onClick={handleRefresh} variant="outline" disabled={refreshing}>
@@ -386,7 +388,7 @@ export default function TransactionsPage() {
                   <History className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500">No transactions found</p>
                   <p className="text-sm text-gray-400 mt-1">
-                    Try adjusting your filters or send some karma to get started!
+                    Try adjusting your filters or send some {currencyName.toLowerCase()} to get started!
                   </p>
                 </div>
               ) : (
@@ -425,7 +427,7 @@ export default function TransactionsPage() {
                             </div>
                             <div className="text-right">
                               <p className={`text-lg font-bold ${isSent ? 'text-red-600' : 'text-green-600'}`}>
-                                {isSent ? '-' : '+'}{formatBalance(transaction.amount, 'Karma')}
+                                {isSent ? '-' : '+'}{formatCurrencyAmount(transaction.amount, currencyName)}
                               </p>
                               {getTransactionBadge(transaction)}
                             </div>

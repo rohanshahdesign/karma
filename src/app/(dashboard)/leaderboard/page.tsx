@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getCurrentProfile } from '@/lib/permissions';
-import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
+import { Profile } from '@/lib/supabase-types';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount } from '@/lib/currency';
 import {
@@ -244,7 +244,7 @@ export default function LeaderboardPage() {
             Leaderboard
           </h1>
           <p className="text-gray-600">
-            See who&apos;s spreading the most karma in your workspace
+            See who&apos;s spreading the most {currencyName.toLowerCase()} in your workspace
           </p>
         </div>
         <Button
@@ -281,12 +281,12 @@ export default function LeaderboardPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Karma Sent</CardTitle>
+                <CardTitle className="text-sm font-medium">Total {currencyName} Sent</CardTitle>
                 <TrendingUp className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {leaderboard.reduce((sum, entry) => sum + entry.total_sent, 0)}
+                  {formatCurrencyAmount(leaderboard.reduce((sum, entry) => sum + entry.total_sent, 0), currencyName)}
                 </div>
                 <p className="text-xs text-muted-foreground">In this period</p>
               </CardContent>
@@ -313,7 +313,7 @@ export default function LeaderboardPage() {
             <CardHeader className="pb-4">
               <CardTitle>Rankings</CardTitle>
               <CardDescription>
-                Based on total karma received {activePeriod === 'all_time' ? 'overall' : `in the last ${activePeriod}`}
+                Based on total {currencyName.toLowerCase()} received {activePeriod === 'all_time' ? 'overall' : `in the last ${activePeriod}`}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -357,10 +357,10 @@ export default function LeaderboardPage() {
                         
                         <div className="text-right space-y-1 flex-shrink-0">
                           <p className="text-sm font-medium text-green-600">
-                            +{entry.total_received}
+                            +{formatCurrencyAmount(entry.total_received, currencyName)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {entry.total_sent} sent
+                            {formatCurrencyAmount(entry.total_sent, currencyName)} sent
                           </p>
                         </div>
                       </div>
@@ -374,7 +374,7 @@ export default function LeaderboardPage() {
                     No activity yet
                   </h3>
                   <p className="text-gray-600">
-                    Be the first to send some karma and start the leaderboard!
+                    Be the first to send some {currencyName.toLowerCase()} and start the leaderboard!
                   </p>
                 </div>
               )}
