@@ -2,7 +2,7 @@
 // GET /api/validation/username?username=example - Check if username is available
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseServer } from '@/lib/supabase-server';
 
 // Username validation rules
 const USERNAME_REGEX = /^[a-zA-Z0-9_-]{2,30}$/;
@@ -48,42 +48,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get current user's workspace to check uniqueness within workspace
-    const authHeader = request.headers.get('authorization');
-    let workspaceId = null;
-    
-    if (authHeader) {
-      try {
-        const token = authHeader.replace('Bearer ', '');
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        
-        if (!error && user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('workspace_id')
-            .eq('auth_user_id', user.id)
-            .single();
-          
-          if (profile) {
-            workspaceId = profile.workspace_id;
-          }
-        }
-      } catch {
-        // Continue without workspace context - will just check global uniqueness
-      }
-    }
-
-    // Check if username exists in the same workspace (or globally if no workspace)
-    let query = supabase
+    // Check if username exists globally
+    // During workspace creation, users don't have profiles yet, so we check globally
+    const { data: existingProfile, error } = await supabaseServer
       .from('profiles')
       .select('id')
-      .eq('username', trimmedUsername);
-
-    if (workspaceId) {
-      query = query.eq('workspace_id', workspaceId);
-    }
-
-    const { data: existingProfile, error } = await query.maybeSingle();
+      .eq('username', trimmedUsername)
+      .maybeSingle();
 
     if (error) {
       console.error('Database error checking username:', error);
