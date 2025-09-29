@@ -3,31 +3,44 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { getSlackConfig } from '../../../../lib/env-validation';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get required environment variables
-    const clientId = process.env.SLACK_CLIENT_ID;
-    const redirectUri = process.env.SLACK_REDIRECT_URI;
-
-    if (!clientId || !redirectUri) {
-      console.error('Missing Slack OAuth environment variables');
+    // Check if Slack integration is ready
+    const slackConfig = getSlackConfig();
+    
+    if (!slackConfig.isReady) {
+      console.error('Slack integration not available:', slackConfig.developmentNote);
       return NextResponse.json(
-        { error: 'Slack OAuth not configured' },
+        { 
+          error: 'Slack OAuth not available', 
+          note: slackConfig.developmentNote || 'Slack OAuth not configured'
+        },
+        { status: 503 }
+      );
+    }
+
+    const { clientId, redirectUri } = slackConfig;
+
+    // Ensure clientId and redirectUri are defined (they should be since slackConfig.isReady is true)
+    if (!clientId || !redirectUri) {
+      console.error('Missing clientId or redirectUri despite isReady being true');
+      return NextResponse.json(
+        { error: 'Slack OAuth configuration error' },
         { status: 500 }
       );
     }
 
-    // Get the state parameter and redirect URL from query params
+    // Get redirect URL from query params
     const { searchParams } = new URL(request.url);
-    const state = searchParams.get('state');
     const redirectTo = searchParams.get('redirect_to') || '/home';
 
     // Create a unique state value for CSRF protection
     const oauthState = crypto.randomUUID();
     
     // Store the state and redirect URL in cookies for verification later
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.set('slack_oauth_state', oauthState, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

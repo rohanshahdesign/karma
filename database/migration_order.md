@@ -29,6 +29,9 @@ After running `drop_all_tables.sql`, run these migrations in **exact order** to 
 18. **016_enhanced_profiles_rewards_badges.sql** - Enhanced profiles, badges, and rewards system
 19. **017_update_default_rewards.sql** - Updated default rewards (Learning/Time Off focus) for all workspaces
 
+## Slack Integration
+20. **022_slack_integration_complete.sql** - Complete Slack integration (tables, RLS, functions, audit logging)
+
 ## Notes:
 - Run each file completely before moving to the next
 - Some files have duplicate numbers (011, 012) - run all of them as listed above

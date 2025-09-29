@@ -307,6 +307,17 @@ export async function validateSlackToken(accessToken: string): Promise<boolean> 
 // CLIENT-SIDE UTILITIES (for UI components)
 // ============================================================================
 
+// Client-safe Slack identity interface (excludes sensitive token data)
+export interface SlackIdentityPublic {
+  id: string;
+  profile_id: string;
+  slack_user_id: string;
+  slack_team_id: string;
+  slack_email: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Client-safe function to check if user has Slack connected
 export async function hasSlackConnected(profileId: string): Promise<boolean> {
   const { data, error } = await supabase
@@ -324,7 +335,7 @@ export async function hasSlackConnected(profileId: string): Promise<boolean> {
 }
 
 // Client-safe function to get user's Slack identities (without tokens)
-export async function getUserSlackIdentities(profileId: string): Promise<SlackIdentity[]> {
+export async function getUserSlackIdentities(profileId: string): Promise<SlackIdentityPublic[]> {
   const { data, error } = await supabase
     .from('slack_identities')
     .select('id, profile_id, slack_user_id, slack_team_id, slack_email, created_at, updated_at')

@@ -45,7 +45,7 @@ export function hasRole(
   requiredRoles: UserRole[]
 ): boolean {
   if (!profile) return false;
-  return requiredRoles.includes(profile.role);
+  return requiredRoles.includes(profile.role as UserRole);
 }
 
 export function isAdmin(profile: Profile | null): boolean {

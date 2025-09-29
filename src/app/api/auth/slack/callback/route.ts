@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify state parameter for CSRF protection
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const storedState = cookieStore.get('slack_oauth_state')?.value;
     const redirectTo = cookieStore.get('slack_oauth_redirect_to')?.value || '/home';
 
