@@ -6,7 +6,7 @@ type RewardInsert = Database['public']['Tables']['rewards']['Insert'];
 type RewardUpdate = Database['public']['Tables']['rewards']['Update'];
 type RewardRedemption = Database['public']['Tables']['reward_redemptions']['Row'];
 
-export interface RewardWithTags extends Omit<Reward, 'tags'> {
+export interface RewardWithTags extends Reward {
   tags?: string[];
 }
 

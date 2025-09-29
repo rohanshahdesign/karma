@@ -435,7 +435,6 @@ export default function WorkspacesPage() {
         description: newRewardData.description || null,
         price: newRewardData.price,
         category: newRewardData.category || 'General',
-        created_by_profile_id: currentProfile.id,
       });
       
       setShowCreateRewardDialog(false);
@@ -458,7 +457,7 @@ export default function WorkspacesPage() {
       title: reward.title,
       description: reward.description || '',
       price: reward.price,
-      category: reward.category,
+      category: reward.category || undefined,
     });
     setShowCreateRewardDialog(true);
   };
