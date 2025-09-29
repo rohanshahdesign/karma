@@ -48,6 +48,7 @@ import {
   getWorkspaceRewardCategories,
   getWorkspaceRedemptions,
   createReward,
+  updateReward,
   deleteReward,
   redeemReward,
   updateRedemptionStatus,
@@ -86,6 +87,7 @@ export default function WorkspacesPage() {
   })[]>([]);
   const [loadingRewards, setLoadingRewards] = useState(false);
   const [showCreateRewardDialog, setShowCreateRewardDialog] = useState(false);
+  const [editingReward, setEditingReward] = useState<RewardWithTags | null>(null);
   const [newRewardData, setNewRewardData] = useState<{
     title?: string;
     description?: string;
@@ -447,6 +449,48 @@ export default function WorkspacesPage() {
     } catch (err) {
       console.error('Error creating reward:', err);
       toast.error(err instanceof Error ? err.message : 'Failed to create reward');
+    }
+  };
+
+  const handleEditReward = (reward: RewardWithTags) => {
+    setEditingReward(reward);
+    setNewRewardData({
+      title: reward.title,
+      description: reward.description || '',
+      price: reward.cost,
+      category: reward.category,
+    });
+    setShowCreateRewardDialog(true);
+  };
+
+  const handleUpdateReward = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newRewardData.title || !newRewardData.price || !editingReward) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    try {
+      await updateReward(editingReward.id, {
+        title: newRewardData.title,
+        description: newRewardData.description || null,
+        cost: newRewardData.price,
+        category: newRewardData.category || 'General',
+      });
+      
+      setShowCreateRewardDialog(false);
+      setEditingReward(null);
+      setNewRewardData({});
+      toast.success('Reward updated successfully!');
+      
+      // Reload rewards data
+      if (currentProfile?.workspace_id) {
+        await loadRewardsData(currentProfile.workspace_id);
+      }
+    } catch (err) {
+      console.error('Error updating reward:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to update reward');
     }
   };
 
@@ -984,9 +1028,7 @@ export default function WorkspacesPage() {
                                         <Button
                                           size="sm"
                                           variant="outline"
-                                          onClick={() => {
-                                            toast.info('Edit reward functionality coming soon!');
-                                          }}
+                                          onClick={() => handleEditReward(reward)}
                                         >
                                           <Edit className="h-3 w-3" />
                                         </Button>
@@ -1204,13 +1246,13 @@ export default function WorkspacesPage() {
         <Dialog open={showCreateRewardDialog} onOpenChange={setShowCreateRewardDialog}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Create New Reward</DialogTitle>
+              <DialogTitle>{editingReward ? 'Edit Reward' : 'Create New Reward'}</DialogTitle>
               <DialogDescription>
-                Add a new reward that team members can redeem with their currency.
+                {editingReward ? 'Update the reward details.' : 'Add a new reward that team members can redeem with their currency.'}
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleCreateReward} className="space-y-4">
+            <form onSubmit={editingReward ? handleUpdateReward : handleCreateReward} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <Label htmlFor="reward-title">Reward Title *</Label>
@@ -1285,6 +1327,7 @@ export default function WorkspacesPage() {
                   className="bg-[#F5F5F5] border-none shadow-none text-gray-700 hover:bg-[#E5E5E5]"
                   onClick={() => {
                     setShowCreateRewardDialog(false);
+                    setEditingReward(null);
                     setNewRewardData({});
                   }}
                 >
@@ -1294,7 +1337,7 @@ export default function WorkspacesPage() {
                   type="submit" 
                   className="bg-green-600 text-white hover:bg-green-700"
                 >
-                  Create Reward
+                  {editingReward ? 'Update Reward' : 'Create Reward'}
                 </Button>
               </DialogFooter>
             </form>
