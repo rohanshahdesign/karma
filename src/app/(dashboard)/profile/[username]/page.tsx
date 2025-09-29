@@ -35,6 +35,8 @@ import { toast } from 'sonner';
 import { getWorkspaceBadges, checkAndAwardBadges, type BadgeWithProgress } from '@/lib/database/badges-client';
 import CompactBadge from '@/components/badges/CompactBadge';
 import BadgesList from '@/components/badges/BadgesList';
+import { EditProfileDialog } from '@/components/profile/EditProfileDialog';
+import SlackConnection from '@/components/auth/SlackConnection';
 
 // Remove this interface as we'll use BadgeWithProgress from badges-client
 
@@ -58,6 +60,7 @@ export default function UserProfilePage() {
   const [profileStats, setProfileStats] = useState<ProfileStats | null>(null);
   const [userBadges, setUserBadges] = useState<BadgeWithProgress[]>([]);
   const [showAllBadges, setShowAllBadges] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState<TransactionWithProfiles[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -170,6 +173,12 @@ export default function UserProfilePage() {
       setLoading(false);
     }
   }, [username, loadProfileStats, loadUserBadges, loadRecentTransactions]);
+
+  const handleProfileUpdated = useCallback((updatedProfile: Profile) => {
+    setViewedProfile(updatedProfile);
+    // Reload profile data to ensure everything is fresh
+    loadProfileData();
+  }, [loadProfileData]);
 
   useEffect(() => {
     loadProfileData();
@@ -532,6 +541,20 @@ export default function UserProfilePage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Slack Integration - Only show for own profile */}
+                  {isOwnProfile && (
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-3">Integrations</h4>
+                      <SlackConnection 
+                        profileId={viewedProfile.id}
+                        onConnectionChange={(connected) => {
+                          console.log('Slack connection changed:', connected);
+                          // Optionally reload profile data or show a toast
+                        }}
+                      />
+                    </div>
+                  )}
 
                 </CardContent>
               </Card>

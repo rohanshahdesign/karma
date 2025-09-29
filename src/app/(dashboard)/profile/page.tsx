@@ -13,9 +13,14 @@ export default function ProfileRedirectPage() {
       try {
         const profile = await getCurrentProfileClient();
         if (profile) {
-          // Use email local part as username since profiles don't have username field yet
-          const username = profile.email.split('@')[0];
-          router.replace(`/profile/${username}`);
+          // Use the actual username field from the profile
+          if (profile.username) {
+            router.replace(`/profile/${profile.username}`);
+          } else {
+            // Fallback to email local part if no username is set
+            const emailUsername = profile.email.split('@')[0];
+            router.replace(`/profile/${emailUsername}`);
+          }
         } else {
           router.replace('/home');
         }
