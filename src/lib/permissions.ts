@@ -138,3 +138,31 @@ export function canModifyUserRole(
 
   return false;
 }
+
+// Get reward points summary for a profile
+export async function getProfileRewardPoints(userId: string): Promise<{
+  total_earned: number;
+  total_redeemed: number;
+  current_balance: number;
+}> {
+  try {
+    const { data, error } = await supabase.rpc('get_user_reward_summary', {
+      user_id: userId
+    });
+    
+    if (error) throw error;
+    
+    return {
+      total_earned: data?.[0]?.total_earned || 0,
+      total_redeemed: data?.[0]?.total_redeemed || 0,
+      current_balance: data?.[0]?.current_balance || 0
+    };
+  } catch (error) {
+    console.error('Error fetching reward points:', error);
+    return {
+      total_earned: 0,
+      total_redeemed: 0,
+      current_balance: 0
+    };
+  }
+}

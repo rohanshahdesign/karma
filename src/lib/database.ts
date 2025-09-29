@@ -1,7 +1,10 @@
 // Database utilities and query functions
 // Provides type-safe database operations with error handling
 
-import { supabase } from './supabase';
+import { supabaseServer } from './supabase-server';
+
+// Use server-side client for API routes and server-side operations
+const supabase = supabaseServer;
 import {
   Profile,
   Workspace,
@@ -9,19 +12,15 @@ import {
   Invitation,
   PendingUser,
   DailySentKarma,
-  ProfileInsert,
   WorkspaceInsert,
   TransactionInsert,
-  InvitationInsert,
   PendingUserInsert,
   DailySentKarmaInsert,
   ProfileUpdate,
   WorkspaceUpdate,
-  InvitationUpdate,
   TransactionWithProfiles,
   WorkspaceWithProfiles,
   ProfileWithWorkspace,
-  InvitationWithDetails,
   WorkspaceStats,
   ProfileStats,
   TransactionStats,
@@ -728,6 +727,8 @@ export async function createWorkspaceWithOwner(args: {
   p_max_transaction_amount?: number;
   p_daily_limit_percentage?: number;
   p_reward_approval_threshold?: number;
+  p_full_name?: string | null;
+  p_avatar_url?: string | null;
 }): Promise<string> {
   const { data, error } = await supabase.rpc(
     'create_workspace_with_owner',

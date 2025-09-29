@@ -35,6 +35,7 @@ export default function LoginPage() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
+        scopes: 'email profile',
         redirectTo:
           process.env.NEXT_PUBLIC_REDIRECT_TO ??
           (typeof window !== 'undefined'

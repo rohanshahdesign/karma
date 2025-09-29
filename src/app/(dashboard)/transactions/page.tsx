@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { UserAvatar, getUserDisplayName } from '@/components/ui/user-avatar';
 import { 
   History,
   Search,
@@ -34,7 +34,7 @@ import {
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
 import { getCurrentProfile } from '@/lib/permissions';
-import { getTransactionsByProfile } from '@/lib/database';
+import { getTransactionsByProfileClient } from '@/lib/database-client';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount } from '@/lib/currency';
 
@@ -86,7 +86,7 @@ export default function TransactionsPage() {
         sort: [{ field: 'created_at', order: 'desc' as const }],
       };
 
-      const result = await getTransactionsByProfile(currentProfile.id, queryConfig);
+      const result = await getTransactionsByProfileClient(currentProfile.id, queryConfig);
       
       let filteredData = result.data || [];
       
@@ -191,12 +191,6 @@ export default function TransactionsPage() {
     setPage(1); // Reset to first page when filtering
   };
 
-  const getInitials = (name: string | null, email: string) => {
-    if (name) {
-      return name.split(' ').map(n => n[0]).join('').toUpperCase();
-    }
-    return email.substring(0, 2).toUpperCase();
-  };
 
   const getTransactionIcon = (transaction: TransactionWithProfiles) => {
     const isSent = transaction.sender_profile_id === currentProfile?.id;
@@ -398,18 +392,14 @@ export default function TransactionsPage() {
                     const isSent = transaction.sender_profile_id === currentProfile?.id;
                     
                     return (
-                      <div key={transaction.id} className="flex items-center space-x-4 p-4 border rounded-lg">
+                      <div key={transaction.id} className="flex items-center space-x-4 p-4 border border-[#ebebeb] rounded-lg">
                         {/* Icon */}
                         <div className="flex-shrink-0">
                           {getTransactionIcon(transaction)}
                         </div>
 
                         {/* Avatar */}
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback>
-                            {getInitials(otherUser.full_name || null, otherUser.email)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar user={otherUser} size="lg" />
 
                         {/* Transaction Details */}
                         <div className="flex-1 min-w-0">
@@ -418,7 +408,7 @@ export default function TransactionsPage() {
                               <p className="text-sm font-medium text-gray-900">
                                 {isSent ? 'Sent to' : 'Received from'} {' '}
                                 <span className="font-semibold">
-                                  {otherUser.full_name || otherUser.email}
+                                  {getUserDisplayName(otherUser)}
                                 </span>
                               </p>
                               <p className="text-xs text-gray-500">
@@ -448,7 +438,7 @@ export default function TransactionsPage() {
 
               {/* Pagination */}
               {transactions.length > 0 && (totalPages > 1) && (
-                <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-[#ebebeb]">
                   <p className="text-sm text-gray-700">
                     Page {page} of {totalPages}
                   </p>

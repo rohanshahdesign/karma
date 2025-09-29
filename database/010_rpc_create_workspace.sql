@@ -6,7 +6,13 @@ create or replace function public.create_workspace_with_owner(
   p_slug text,
   p_currency_name text,
   p_monthly_allowance integer,
-  p_owner_email text
+  p_owner_email text,
+  p_min_transaction_amount integer default 5,
+  p_max_transaction_amount integer default 20,
+  p_daily_limit_percentage integer default 30,
+  p_reward_approval_threshold integer default 1000,
+  p_full_name text default null,
+  p_avatar_url text default null
 )
 returns uuid
 language plpgsql
@@ -21,14 +27,35 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  insert into public.workspaces (name, slug, currency_name, monthly_allowance)
-  values (p_name, p_slug, p_currency_name, p_monthly_allowance)
-  returning id into v_workspace_id;
-
-  insert into public.profiles (
-    auth_user_id, workspace_id, email, role, giving_balance, redeemable_balance
+  -- Create workspace with basic info
+  insert into public.workspaces (
+    name, slug, currency_name, monthly_allowance
   ) values (
-    v_auth_user, v_workspace_id, p_owner_email, 'super_admin', 100, 0
+    p_name, p_slug, p_currency_name, p_monthly_allowance
+  ) returning id into v_workspace_id;
+
+  -- Create workspace settings
+  insert into public.workspace_settings (
+    workspace_id, 
+    min_transaction_amount, 
+    max_transaction_amount, 
+    daily_limit_percentage,
+    monthly_allowance,
+    currency_name
+  ) values (
+    v_workspace_id, 
+    p_min_transaction_amount,
+    p_max_transaction_amount,
+    p_daily_limit_percentage,
+    p_monthly_allowance,
+    p_currency_name
+  );
+
+  -- Create owner profile with Google data
+  insert into public.profiles (
+    auth_user_id, workspace_id, email, full_name, avatar_url, role, giving_balance, redeemable_balance
+  ) values (
+    v_auth_user, v_workspace_id, p_owner_email, p_full_name, p_avatar_url, 'super_admin', p_monthly_allowance, 0
   );
 
   -- clean up any pending_users entry
@@ -38,6 +65,8 @@ begin
 end;
 $$;
 
-grant execute on function public.create_workspace_with_owner(text, text, text, integer, text) to authenticated;
+grant execute on function public.create_workspace_with_owner(
+  text, text, text, integer, text, integer, integer, integer, integer, text, text
+) to authenticated;
 
 

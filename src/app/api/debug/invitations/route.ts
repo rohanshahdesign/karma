@@ -16,7 +16,7 @@ export async function GET() {
     // Use the debug function from database-server
     const debugResult = await debugInvitationLookup('TEST');
     
-    const { allInvitations, exactMatches, iLikeMatches, activeCheck } = debugResult;
+    const { allInvitations, activeCheck } = debugResult;
     
     // Test specific codes
     const testCodes = ['0E03JN', 'C3F6O7'];

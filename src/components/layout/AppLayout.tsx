@@ -11,10 +11,21 @@ import {
   TrendingUp,
   Menu,
   X,
+  LogOut,
+  User,
+  ChevronUp,
 } from 'lucide-react';
 import { getCurrentProfile } from '@/lib/permissions';
-import { Profile } from '@/lib/supabase-types';
-import { useCurrency } from '@/contexts/CurrencyContext';
+import { Profile, Workspace } from '@/lib/supabase-types';
+import { supabase } from '@/lib/supabase';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { UserAvatar, getUserDisplayName } from '@/components/ui/user-avatar';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -49,6 +60,11 @@ const navItems: NavItem[] = [
     icon: TrendingUp,
   },
   {
+    href: '/profile',
+    label: 'Profile',
+    icon: User,
+  },
+  {
     href: '/workspaces',
     label: 'Workspace',
     icon: Settings,
@@ -58,7 +74,7 @@ const navItems: NavItem[] = [
 export default function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
-  const { currencyName } = useCurrency();
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -67,6 +83,19 @@ export default function AppLayout({ children }: AppLayoutProps) {
       try {
         const profile = await getCurrentProfile();
         setCurrentProfile(profile);
+        
+        // Load workspace data
+        if (profile) {
+          const { data: workspaceData, error } = await supabase
+            .from('workspaces')
+            .select('*')
+            .eq('id', profile.workspace_id)
+            .single();
+          
+          if (!error && workspaceData) {
+            setWorkspace(workspaceData);
+          }
+        }
       } catch (error) {
         console.error('Failed to load profile:', error);
         router.push('/login');
@@ -79,6 +108,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return pathname === href || (href !== '/home' && pathname.startsWith(href));
   };
 
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      router.push('/login');
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Desktop Sidebar */}
@@ -88,10 +126,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <div className="flex items-center flex-shrink-0 px-4">
               <div className="flex items-center">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">K</span>
+                  <span className="text-white font-bold text-sm">
+                    {workspace?.name?.charAt(0) || 'K'}
+                  </span>
                 </div>
                 <span className="ml-3 text-xl font-semibold text-gray-900">
-                  {currencyName.charAt(0).toUpperCase() + currencyName.slice(1)}
+                  {workspace?.name || 'Karma'}
                 </span>
               </div>
             </div>
@@ -126,22 +166,45 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </nav>
           </div>
           {currentProfile && (
-            <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
-              <div className="flex items-center">
-                <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-medium text-sm">
-                    {currentProfile.full_name?.charAt(0) || currentProfile.email.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-700">
-                    {currentProfile.full_name || 'User'}
-                  </p>
-                  <p className="text-xs font-medium text-gray-500 capitalize">
-                    {currentProfile.role.replace('_', ' ')}
-                  </p>
-                </div>
-              </div>
+            <div className="flex-shrink-0 flex border-t border-gray-200">
+              <DropdownMenu>
+                <DropdownMenuTrigger className="w-full p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <UserAvatar user={currentProfile} size="md" clickable={false} />
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-gray-700 text-left">
+                          {getUserDisplayName(currentProfile)}
+                        </p>
+                        <p className="text-xs font-medium text-gray-500 capitalize text-left">
+                          {currentProfile.role.replace('_', ' ')}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronUp className="h-4 w-4 text-gray-500" />
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="center"
+                  sideOffset={12}
+                  className="w-56 border-[#ebebeb] mx-4"
+                >
+                  <DropdownMenuItem asChild className="flex items-center cursor-pointer hover:bg-gray-50">
+                    <Link href="/profile">
+                      <User className="mr-2 h-4 w-4" />
+                      Profile Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    className="flex items-center cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
         </div>
@@ -169,10 +232,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <div className="flex-shrink-0 flex items-center px-4">
                   <div className="flex items-center">
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">K</span>
+                      <span className="text-white font-bold text-sm">
+                        {workspace?.name?.charAt(0) || 'K'}
+                      </span>
                     </div>
                     <span className="ml-3 text-xl font-semibold text-gray-900">
-                      {currencyName.charAt(0).toUpperCase() + currencyName.slice(1)}
+                      {workspace?.name || 'Karma'}
                     </span>
                   </div>
                 </div>
@@ -225,10 +290,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </button>
           <div className="flex items-center">
             <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center">
-              <span className="text-white font-bold text-xs">K</span>
+              <span className="text-white font-bold text-xs">
+                {workspace?.name?.charAt(0) || 'K'}
+              </span>
             </div>
             <span className="ml-2 text-lg font-semibold text-gray-900">
-              Karma
+              {workspace?.name || 'Karma'}
             </span>
           </div>
           <div className="w-8" /> {/* Spacer for centering */}

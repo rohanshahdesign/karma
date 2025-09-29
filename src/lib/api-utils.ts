@@ -7,7 +7,6 @@ import { HTTP_STATUS, ERROR_CODES, ApiError } from './api-types';
 import { ApiResponse, PaginatedResponse } from './types';
 import { DatabaseError } from './database';
 import { Profile } from './supabase-types';
-import { supabase } from './supabase';
 import { supabaseServer } from './supabase-server';
 
 // ============================================================================
@@ -27,7 +26,14 @@ export interface AuthenticatedJoinRequest extends NextRequest {
     id: string;
     email: string;
     profile: Profile | null;
+    raw_user_metadata?: {
+      full_name?: string;
+      name?: string;
+      avatar_url?: string;
+      picture?: string;
+    };
   };
+  supabase: typeof supabaseServer;
 }
 
 export async function getAuthenticatedUser(): Promise<{
@@ -75,6 +81,12 @@ export async function getAuthenticatedUserForJoin(req: NextRequest): Promise<{
   id: string;
   email: string;
   profile: Profile | null;
+  raw_user_metadata?: {
+    full_name?: string;
+    name?: string;
+    avatar_url?: string;
+    picture?: string;
+  };
 }> {
   try {
     console.log('=== JOIN AUTH DEBUG ===');
@@ -141,6 +153,7 @@ export async function getAuthenticatedUserForJoin(req: NextRequest): Promise<{
       id: user.id,
       email: user.email || '',
       profile,
+      raw_user_metadata: user.user_metadata,
     };
   } catch (error) {
     console.log('Join auth error:', error);
@@ -379,6 +392,7 @@ export function withJoinAuth(
     try {
       const user = await getAuthenticatedUserForJoin(req);
       (req as AuthenticatedJoinRequest).user = user;
+      (req as AuthenticatedJoinRequest).supabase = supabaseServer;
       return await handler(req as AuthenticatedJoinRequest);
     } catch (error) {
       if (

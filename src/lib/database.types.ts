@@ -53,6 +53,7 @@ export interface Database {
           workspace_id: string;
           email: string;
           full_name: string | null;
+          avatar_url: string | null;
           role: 'employee' | 'admin' | 'super_admin';
           giving_balance: number;
           redeemable_balance: number;
@@ -67,6 +68,7 @@ export interface Database {
           workspace_id: string;
           email: string;
           full_name?: string | null;
+          avatar_url?: string | null;
           role?: 'employee' | 'admin' | 'super_admin';
           giving_balance?: number;
           redeemable_balance?: number;
@@ -81,6 +83,7 @@ export interface Database {
           workspace_id?: string;
           email?: string;
           full_name?: string | null;
+          avatar_url?: string | null;
           role?: 'employee' | 'admin' | 'super_admin';
           giving_balance?: number;
           redeemable_balance?: number;
@@ -165,18 +168,27 @@ export interface Database {
       };
       pending_users: {
         Row: {
+          id: string;
           auth_user_id: string;
           email: string;
+          full_name: string | null;
+          avatar_url: string | null;
           created_at: string;
         };
         Insert: {
+          id?: string;
           auth_user_id: string;
           email: string;
+          full_name?: string | null;
+          avatar_url?: string | null;
           created_at?: string;
         };
         Update: {
+          id?: string;
           auth_user_id?: string;
           email?: string;
+          full_name?: string | null;
+          avatar_url?: string | null;
           created_at?: string;
         };
       };
@@ -197,6 +209,196 @@ export interface Database {
           amount_sent?: number;
         };
       };
+      badges: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          name: string;
+          description: string;
+          icon_url: string | null;
+          criteria: Record<string, unknown>;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          name: string;
+          description: string;
+          icon_url?: string | null;
+          criteria: Record<string, unknown>;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          workspace_id?: string;
+          name?: string;
+          description?: string;
+          icon_url?: string | null;
+          criteria?: Record<string, unknown>;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      user_badges: {
+        Row: {
+          id: string;
+          profile_id: string;
+          badge_id: string;
+          workspace_id: string;
+          achieved_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          badge_id: string;
+          workspace_id: string;
+          achieved_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          badge_id?: string;
+          workspace_id?: string;
+          achieved_at?: string;
+          created_at?: string;
+        };
+      };
+      badge_progress: {
+        Row: {
+          id: string;
+          profile_id: string;
+          badge_id: string;
+          current_value: number;
+          target_value: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          badge_id: string;
+          current_value?: number;
+          target_value: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          badge_id?: string;
+          current_value?: number;
+          target_value?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      rewards: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          title: string;
+          description: string | null;
+          cost: number;
+          category: string;
+          tags: string[];
+          stock_quantity: number | null;
+          stock_remaining: number | null;
+          requires_approval: boolean;
+          active: boolean;
+          image_url: string | null;
+          created_by_profile_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          title: string;
+          description: string | null;
+          cost: number;
+          category: string;
+          tags?: string[];
+          stock_quantity?: number | null;
+          stock_remaining?: number | null;
+          requires_approval?: boolean;
+          active?: boolean;
+          image_url?: string | null;
+          created_by_profile_id: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          workspace_id?: string;
+          title?: string;
+          description?: string | null;
+          cost?: number;
+          category?: string;
+          tags?: string[];
+          stock_quantity?: number | null;
+          stock_remaining?: number | null;
+          requires_approval?: boolean;
+          active?: boolean;
+          image_url?: string | null;
+          created_by_profile_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      reward_redemptions: {
+        Row: {
+          id: string;
+          profile_id: string;
+          reward_id: string;
+          workspace_id: string;
+          cost: number;
+          status: 'pending' | 'approved' | 'fulfilled' | 'cancelled';
+          approved_by_profile_id: string | null;
+          fulfilled_at: string | null;
+          cancelled_at: string | null;
+          cancellation_reason: string | null;
+          admin_note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          reward_id: string;
+          workspace_id: string;
+          cost: number;
+          status?: 'pending' | 'approved' | 'fulfilled' | 'cancelled';
+          approved_by_profile_id?: string | null;
+          fulfilled_at?: string | null;
+          cancelled_at?: string | null;
+          cancellation_reason?: string | null;
+          admin_note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          reward_id?: string;
+          workspace_id?: string;
+          cost?: number;
+          status?: 'pending' | 'approved' | 'fulfilled' | 'cancelled';
+          approved_by_profile_id?: string | null;
+          fulfilled_at?: string | null;
+          cancelled_at?: string | null;
+          cancellation_reason?: string | null;
+          admin_note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       current_profile: {
@@ -206,6 +408,7 @@ export interface Database {
           workspace_id: string;
           email: string;
           full_name: string | null;
+          avatar_url: string | null;
           role: 'employee' | 'admin' | 'super_admin';
           giving_balance: number;
           redeemable_balance: number;
@@ -228,6 +431,8 @@ export interface Database {
           p_max_transaction_amount?: number;
           p_daily_limit_percentage?: number;
           p_reward_approval_threshold?: number;
+          p_full_name?: string;
+          p_avatar_url?: string;
         };
         Returns: string;
       };
@@ -263,6 +468,15 @@ export interface Database {
           p_workspace_id: string;
         };
         Returns: boolean;
+      };
+      join_workspace_with_code: {
+        Args: {
+          p_invitation_code: string;
+          p_user_email: string;
+          p_full_name?: string;
+          p_avatar_url?: string;
+        };
+        Returns: string;
       };
     };
     Enums: {

@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@plugin "tailwindcss-animate";
+/* @plugin "tailwindcss-animate"; */
 
 /* Fix for dialog and modal z-index issues */
 [data-radix-popper-content-wrapper] {
@@ -34,6 +34,7 @@ html {
 body {
   /* Remove any browser extension attributes that might cause hydration issues */
   isolation: isolate;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
 /* Force proper styling for all form elements */
@@ -66,7 +67,7 @@ input:focus, select:focus, textarea:focus {
   --accent-foreground: black;
   --destructive: #ef4444;
   --destructive-foreground: white;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
+  --border: #ebebeb;
+  --input: #ebebeb;
   --ring: #3b82f6;
 }

@@ -33,9 +33,19 @@ export default function AuthCallbackPage() {
       if (profile) {
         router.replace('/home');
       } else {
+        // Extract Google profile data from user metadata
+        const fullName = user.user_metadata?.full_name || user.user_metadata?.name;
+        const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture;
+        
         await supabase
           .from('pending_users')
-          .upsert({ auth_user_id: user.id, email: user.email });
+          .upsert({ 
+            auth_user_id: user.id, 
+            email: user.email || '',
+            // Store Google profile data for later use during onboarding
+            full_name: fullName,
+            avatar_url: avatarUrl
+          });
         router.replace('/onboarding');
       }
     };

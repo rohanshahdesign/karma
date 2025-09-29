@@ -1,8 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { getCurrentProfile } from '../lib/permissions';
-import { getWorkspace } from '../lib/database';
+import { getCurrentWorkspaceClient } from '../lib/database-client';
 
 interface CurrencyContextType {
   currencyName: string;
@@ -19,12 +18,9 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const loadCurrencyName = async () => {
     try {
       setIsLoading(true);
-      const profile = await getCurrentProfile();
-      if (profile) {
-        const workspace = await getWorkspace(profile.workspace_id);
-        if (workspace?.currency_name) {
-          setCurrencyName(workspace.currency_name);
-        }
+      const workspace = await getCurrentWorkspaceClient();
+      if (workspace?.currency_name) {
+        setCurrencyName(workspace.currency_name);
       }
     } catch (error) {
       console.error('Error loading currency name:', error);

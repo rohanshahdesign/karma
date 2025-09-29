@@ -4,6 +4,7 @@
 
 import {
   withAuth,
+  withJoinAuth,
   withErrorHandling,
   createSuccessResponse,
   createNotFoundResponse,
@@ -11,6 +12,7 @@ import {
 import {
   getCurrentWorkspace,
   createWorkspaceWithOwner,
+  getPendingUserSafe,
 } from '../../../lib/database';
 import { CreateWorkspaceInput } from '../../../lib/types';
 
@@ -37,7 +39,7 @@ export const GET = withErrorHandling(
 
 // POST /api/workspaces - Create new workspace
 export const POST = withErrorHandling(
-  withAuth(async (req) => {
+  withJoinAuth(async (req) => {
     const { profile } = req.user;
     const body = (await req.json()) as CreateWorkspaceInput;
 
@@ -60,6 +62,18 @@ export const POST = withErrorHandling(
     }
 
     try {
+      // Get Google profile data from pending_users or user metadata
+      const pendingUser = await getPendingUserSafe(req.user.id);
+      const userMetadata = req.user.raw_user_metadata;
+      
+      // Extract Google profile data from pending_users or metadata
+      const fullName = pendingUser?.full_name || 
+                      userMetadata?.full_name || 
+                      userMetadata?.name || null;
+      const avatarUrl = pendingUser?.avatar_url || 
+                       userMetadata?.avatar_url || 
+                       userMetadata?.picture || null;
+      
       await createWorkspaceWithOwner({
         p_name: body.name,
         p_slug: body.slug || generateSlug(body.name),
@@ -70,6 +84,8 @@ export const POST = withErrorHandling(
         p_max_transaction_amount: body.max_transaction_amount || 20,
         p_daily_limit_percentage: body.daily_limit_percentage || 30,
         p_reward_approval_threshold: body.reward_approval_threshold || 1000,
+        p_full_name: fullName,
+        p_avatar_url: avatarUrl,
       });
 
       // Get the created workspace

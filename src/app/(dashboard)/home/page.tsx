@@ -18,7 +18,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { UserAvatar, getUserDisplayName } from '@/components/ui/user-avatar';
 import {
   Send,
   TrendingUp,
@@ -28,6 +28,7 @@ import {
   MessageSquare,
   Calendar,
   Coins,
+  History,
 } from 'lucide-react';
 
 export default function DashboardHomePage() {
@@ -80,10 +81,10 @@ export default function DashboardHomePage() {
         .select(`
           *,
           sender_profile:profiles!sender_profile_id(
-            id, email, full_name
+            id, email, full_name, avatar_url
           ),
           receiver_profile:profiles!receiver_profile_id(
-            id, email, full_name
+            id, email, full_name, avatar_url
           )
         `)
         .or(`sender_profile_id.eq.${profile.id},receiver_profile_id.eq.${profile.id}`)
@@ -209,19 +210,19 @@ export default function DashboardHomePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex gap-4">
-          <Button asChild className="flex-1 md:flex-none">
+          <Button asChild className="flex-1 md:flex-none bg-white border border-[#ebebeb] shadow-none text-gray-900 hover:bg-gray-50">
             <Link href="/send">
               <Send className="mr-2 h-4 w-4" />
               {CURRENCY_PATTERNS.SEND_KARMA(currencyName)}
             </Link>
           </Button>
-          <Button variant="outline" asChild className="flex-1 md:flex-none">
+          <Button asChild className="flex-1 md:flex-none bg-white border border-[#ebebeb] shadow-none text-gray-900 hover:bg-gray-50">
             <Link href="/transactions">
-              <MessageSquare className="mr-2 h-4 w-4" />
+              <History className="mr-2 h-4 w-4" />
               View History
             </Link>
           </Button>
-          <Button variant="outline" asChild className="hidden md:inline-flex">
+          <Button asChild className="hidden md:inline-flex bg-white border border-[#ebebeb] shadow-none text-gray-900 hover:bg-gray-50">
             <Link href="/workspaces">
               <Users className="mr-2 h-4 w-4" />
               Workspace
@@ -247,18 +248,28 @@ export default function DashboardHomePage() {
                 
                 return (
                   <div key={transaction.id} className="flex items-start space-x-4">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className={isSent ? "bg-blue-100 text-blue-600" : "bg-green-100 text-green-600"}>
+                    <div className="relative">
+                      {otherProfile ? (
+                        <UserAvatar user={otherProfile} size="md" />
+                      ) : (
+                        <UserAvatar 
+                          user={{ email: 'Unknown', full_name: null, avatar_url: null }} 
+                          size="md" 
+                        />
+                      )}
+                      <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center ${
+                        isSent ? 'bg-blue-500' : 'bg-green-500'
+                      }`}>
                         {isSent ? (
-                          <ArrowUpRight className="h-4 w-4" />
+                          <ArrowUpRight className="h-2.5 w-2.5 text-white" />
                         ) : (
-                          <ArrowDownLeft className="h-4 w-4" />
+                          <ArrowDownLeft className="h-2.5 w-2.5 text-white" />
                         )}
-                      </AvatarFallback>
-                    </Avatar>
+                      </div>
+                    </div>
                     <div className="flex-1 space-y-1">
                       <p className="text-sm font-medium leading-none">
-                        {isSent ? 'You sent' : 'You received'} {formatCurrencyAmount(transaction.amount, currencyName)} {isSent ? 'to' : 'from'} {otherProfile?.full_name || otherProfile?.email || 'Someone'}
+                        {isSent ? 'You sent' : 'You received'} {formatCurrencyAmount(transaction.amount, currencyName)} {isSent ? 'to' : 'from'} {otherProfile ? getUserDisplayName(otherProfile) : 'Someone'}
                       </p>
                       {transaction.message && (
                         <p className="text-sm text-muted-foreground">

@@ -6,15 +6,7 @@ import {
   withErrorHandling,
   createSuccessResponse,
 } from '../../../../lib/api-utils';
-import {
-  getInvitationByCode,
-  debugInvitationLookup,
-  updateInvitation,
-  createProfile,
-} from '../../../../lib/database-server';
-import {
-  deletePendingUser,
-} from '../../../../lib/database';
+// Unused imports removed - now using RPC function approach
 import { JoinWorkspaceInput } from '../../../../lib/types';
 
 // POST /api/invitations/join - Join workspace using invite code
@@ -46,85 +38,40 @@ export const POST = withErrorHandling(
     }
 
     try {
-      // Debug the invitation lookup first
-      await debugInvitationLookup(body.invite_code.toUpperCase());
+      // Get Google profile data from user metadata or pending_users
+      const fullName = req.user.raw_user_metadata?.full_name || req.user.raw_user_metadata?.name;
+      const avatarUrl = req.user.raw_user_metadata?.avatar_url || req.user.raw_user_metadata?.picture;
       
-      // Get invitation by code (human-readable)
-      const invitation = await getInvitationByCode(
-        body.invite_code.toUpperCase()
+      console.log('Using Google profile data:', { fullName, avatarUrl });
+      
+      // Use RPC function to join workspace with Google profile data
+      const { data: workspaceId, error: rpcError } = await req.supabase.rpc(
+        'join_workspace_with_code',
+        {
+          p_invitation_code: body.invite_code.toUpperCase(),
+          p_user_email: email,
+          p_full_name: fullName || null,
+          p_avatar_url: avatarUrl || null,
+        }
       );
-
-      console.log('Found invitation:', {
-        id: invitation.id,
-        code: invitation.code,
-        active: invitation.active,
-        workspaceId: invitation.workspace_id,
-        usesCount: invitation.uses_count,
-        maxUses: invitation.max_uses
-      });
-
-      // Check if invitation is still active
-      if (!invitation.active) {
-        console.log('Invitation not active');
-        return createSuccessResponse(
-          null,
-          'Invitation is no longer active',
-          400
-        );
-      }
-
-      // Check if invitation has expired
-      if (
-        invitation.expires_at &&
-        new Date(invitation.expires_at) < new Date()
-      ) {
-        console.log('Invitation expired');
-        return createSuccessResponse(null, 'Invitation has expired', 400);
-      }
-
-      // Check if invitation has reached max uses
-      if (invitation.max_uses && invitation.uses_count >= invitation.max_uses) {
-        console.log('Invitation max uses reached');
-        return createSuccessResponse(
-          null,
-          'Invitation has reached maximum uses',
-          400
-        );
-      }
-
-      console.log('Creating profile for user:', req.user.id);
       
-      // Create profile for the user
-      const newProfile = await createProfile({
-        auth_user_id: req.user.id,
-        workspace_id: invitation.workspace_id,
-        email: email,
-        role: 'employee',
-        giving_balance: 100, // Default monthly allowance
-        redeemable_balance: 0,
-        active: true,
-      });
-
-      console.log('Profile created successfully:', newProfile.id);
-
-      // Increment invitation usage count
-      try {
-        await updateInvitation(invitation.id, {
-          uses_count: invitation.uses_count + 1
-        });
-        console.log('Invitation uses count incremented');
-      } catch (err) {
-        console.error('Failed to increment invitation uses:', err);
-        // Don't fail the join if we can't update the count
+      if (rpcError) {
+        console.error('RPC error:', rpcError);
+        throw rpcError;
       }
-
-      // Remove pending user entry if exists
-      try {
-        await deletePendingUser(req.user.id);
-        console.log('Pending user entry removed');
-      } catch {
-        console.log('No pending user entry to remove');
-        // Ignore if pending user doesn't exist
+      
+      console.log('Successfully joined workspace:', workspaceId);
+      
+      // Get the created profile
+      const { data: newProfile, error: profileError } = await req.supabase
+        .from('profiles')
+        .select('*')
+        .eq('auth_user_id', req.user.id)
+        .single();
+        
+      if (profileError) {
+        console.error('Error fetching created profile:', profileError);
+        throw profileError;
       }
 
       console.log('Join successful, returning profile');
