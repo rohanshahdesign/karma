@@ -23,7 +23,8 @@ import {
   TrendingDown,
   Activity,
   ArrowLeft,
-  Mail
+  Mail,
+  Edit
 } from 'lucide-react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
@@ -341,6 +342,21 @@ export default function UserProfilePage() {
                         </div>
                       </div>
                     )}
+                    
+                    {/* Edit Profile Button */}
+                    {isOwnProfile && (
+                      <div className="mt-3">
+                        <Button
+                          onClick={() => setShowEditProfile(true)}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <Edit className="h-4 w-4" />
+                          Edit Profile
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -582,6 +598,16 @@ export default function UserProfilePage() {
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* Edit Profile Dialog */}
+      {currentProfile && isOwnProfile && (
+        <EditProfileDialog
+          open={showEditProfile}
+          onOpenChange={setShowEditProfile}
+          profile={viewedProfile}
+          onProfileUpdated={handleProfileUpdated}
+        />
+      )}
     </ProtectedRoute>
   );
 }
