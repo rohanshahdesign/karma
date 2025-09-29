@@ -1,26 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { ProfileUpdate } from '@/lib/supabase-types';
+import { getAuthenticatedUserForJoin } from '@/lib/api-utils';
 
 export async function POST(request: NextRequest) {
   try {
-    // Get the authorization header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: 'Authorization header required' },
-        { status: 401 }
-      );
-    }
-
-    // Verify the user's JWT token
-    const token = authHeader.replace('Bearer ', '');
-    const { data: userData, error: userError } = await supabaseServer.auth.getUser(token);
+    // Get the authenticated user using the proper authentication helper
+    const { id: userId, profile: userProfile } = await getAuthenticatedUserForJoin(request);
     
-    if (userError || !userData.user) {
+    if (!userProfile) {
       return NextResponse.json(
-        { error: 'Invalid authentication token' },
-        { status: 401 }
+        { error: 'Profile required - please complete onboarding' },
+        { status: 403 }
       );
     }
 
@@ -50,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify that the authenticated user owns this profile
-    if (currentProfile.auth_user_id !== userData.user.id) {
+    if (currentProfile.auth_user_id !== userId) {
       return NextResponse.json(
         { error: 'You can only update your own profile' },
         { status: 403 }
