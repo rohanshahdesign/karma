@@ -305,7 +305,7 @@ export interface Database {
           workspace_id: string;
           title: string;
           description: string | null;
-          cost: number;
+          price: number;
           category: string;
           tags: string[];
           stock_quantity: number | null;
@@ -322,7 +322,7 @@ export interface Database {
           workspace_id: string;
           title: string;
           description: string | null;
-          cost: number;
+          price: number;
           category: string;
           tags?: string[];
           stock_quantity?: number | null;
@@ -339,7 +339,7 @@ export interface Database {
           workspace_id?: string;
           title?: string;
           description?: string | null;
-          cost?: number;
+          price?: number;
           category?: string;
           tags?: string[];
           stock_quantity?: number | null;
@@ -358,7 +358,7 @@ export interface Database {
           profile_id: string;
           reward_id: string;
           workspace_id: string;
-          cost: number;
+          price: number;
           status: 'pending' | 'approved' | 'fulfilled' | 'cancelled';
           approved_by_profile_id: string | null;
           fulfilled_at: string | null;
@@ -373,7 +373,7 @@ export interface Database {
           profile_id: string;
           reward_id: string;
           workspace_id: string;
-          cost: number;
+          price: number;
           status?: 'pending' | 'approved' | 'fulfilled' | 'cancelled';
           approved_by_profile_id?: string | null;
           fulfilled_at?: string | null;
@@ -388,7 +388,7 @@ export interface Database {
           profile_id?: string;
           reward_id?: string;
           workspace_id?: string;
-          cost?: number;
+          price?: number;
           status?: 'pending' | 'approved' | 'fulfilled' | 'cancelled';
           approved_by_profile_id?: string | null;
           fulfilled_at?: string | null;

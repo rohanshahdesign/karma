@@ -123,7 +123,7 @@ export async function redeemReward(
   // Get reward price
   const { data: reward, error: rewardError } = await supabase
     .from('rewards')
-    .select('cost, title')
+    .select('price, title')
     .eq('id', rewardId)
     .single();
 
@@ -131,7 +131,7 @@ export async function redeemReward(
     throw new Error(`Failed to fetch reward: ${rewardError.message}`);
   }
 
-  if (!profile || profile.redeemable_balance < reward.cost) {
+  if (!profile || profile.redeemable_balance < reward.price) {
     throw new Error('Insufficient balance to redeem this reward');
   }
 
@@ -155,7 +155,7 @@ export async function redeemReward(
   const { error: balanceError } = await supabase
     .from('profiles')
     .update({ 
-      redeemable_balance: profile.redeemable_balance - reward.cost,
+      redeemable_balance: profile.redeemable_balance - reward.price,
       updated_at: new Date().toISOString()
     })
     .eq('id', profileId);
@@ -175,7 +175,7 @@ export async function redeemReward(
  */
 export async function getWorkspaceRedemptions(workspaceId: string): Promise<(RewardRedemption & {
   profile: { full_name: string | null; email: string; username: string | null };
-  reward: { title: string; cost: number };
+  reward: { title: string; price: number };
 })[]> {
   try {
     // First, just get the basic redemption data
@@ -205,7 +205,7 @@ export async function getWorkspaceRedemptions(workspaceId: string): Promise<(Rew
             .single(),
           supabase
             .from('rewards')
-            .select('title, cost')
+            .select('title, price')
             .eq('id', redemption.reward_id)
             .single()
         ]);
@@ -213,7 +213,7 @@ export async function getWorkspaceRedemptions(workspaceId: string): Promise<(Rew
         return {
           ...redemption,
           profile: profileData.data || { full_name: null, email: 'Unknown', username: null },
-          reward: rewardData.data || { title: 'Unknown Reward', cost: 0 }
+          reward: rewardData.data || { title: 'Unknown Reward', price: 0 }
         };
       })
     );

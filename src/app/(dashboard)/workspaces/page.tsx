@@ -83,7 +83,7 @@ export default function WorkspacesPage() {
   const [rewardCategories, setRewardCategories] = useState<string[]>([]);
   const [redemptions, setRedemptions] = useState<(RewardRedemption & {
     profile: { full_name: string | null; email: string; username: string | null };
-    reward: { title: string; cost: number };
+    reward: { title: string; price: number };
   })[]>([]);
   const [loadingRewards, setLoadingRewards] = useState(false);
   const [showCreateRewardDialog, setShowCreateRewardDialog] = useState(false);
@@ -433,7 +433,7 @@ export default function WorkspacesPage() {
         workspace_id: currentProfile.workspace_id,
         title: newRewardData.title,
         description: newRewardData.description || null,
-        cost: newRewardData.price,
+        price: newRewardData.price,
         category: newRewardData.category || 'General',
         created_by_profile_id: currentProfile.id,
       });
@@ -457,7 +457,7 @@ export default function WorkspacesPage() {
     setNewRewardData({
       title: reward.title,
       description: reward.description || '',
-      price: reward.cost,
+      price: reward.price,
       category: reward.category,
     });
     setShowCreateRewardDialog(true);
@@ -475,7 +475,7 @@ export default function WorkspacesPage() {
       await updateReward(editingReward.id, {
         title: newRewardData.title,
         description: newRewardData.description || null,
-        cost: newRewardData.price,
+        price: newRewardData.price,
         category: newRewardData.category || 'General',
       });
       
@@ -985,7 +985,7 @@ export default function WorkspacesPage() {
                       ) : filteredRewards.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredRewards.map((reward) => {
-                          const canAfford = currentProfile ? currentProfile.redeemable_balance >= reward.cost : false;
+                          const canAfford = currentProfile ? currentProfile.redeemable_balance >= reward.price : false;
                           const categoryColors: Record<string, string> = {
                             'Learning': 'bg-orange-100 text-orange-800',
                             'Time Off': 'bg-green-100 text-green-800',
@@ -1019,7 +1019,7 @@ export default function WorkspacesPage() {
                                     <div className="flex items-center gap-2">
                                       <Star className="h-4 w-4 text-yellow-500" />
                                       <span className="font-bold text-lg">
-                                        {reward.cost} {workspace.currency_name}
+                                        {reward.price} {workspace.currency_name}
                                       </span>
                                     </div>
                                     
@@ -1051,7 +1051,7 @@ export default function WorkspacesPage() {
                                         disabled={!canAfford}
                                         onClick={() => {
                                           if (canAfford) {
-                                            if (confirm(`Are you sure you want to redeem "${reward.title}" for ${reward.cost} ${workspace.currency_name}?`)) {
+                                            if (confirm(`Are you sure you want to redeem "${reward.title}" for ${reward.price} ${workspace.currency_name}?`)) {
                                               handleRedeemReward(reward.id);
                                             }
                                           }
@@ -1066,7 +1066,7 @@ export default function WorkspacesPage() {
                                         ) : (
                                           <>
                                             <X className="mr-1 h-3 w-3" />
-                                            Need {reward.cost - (currentProfile?.redeemable_balance || 0)} more
+                                            Need {reward.price - (currentProfile?.redeemable_balance || 0)} more
                                           </>
                                         )}
                                       </Button>
@@ -1143,7 +1143,7 @@ export default function WorkspacesPage() {
                                         </span>
                                       </p>
                                       <p className="text-sm text-gray-500">
-                                        Cost: {redemption.reward.cost} {workspace.currency_name} • 
+                                        Cost: {redemption.reward.price} {workspace.currency_name} • 
                                         {new Date(redemption.created_at).toLocaleDateString()}
                                       </p>
                                       {redemption.admin_note && (
