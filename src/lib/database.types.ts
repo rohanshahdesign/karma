@@ -16,6 +16,7 @@ export interface Database {
           max_transaction_amount: number;
           daily_limit_percentage: number;
           reward_approval_threshold: number;
+          slack_team_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -29,6 +30,7 @@ export interface Database {
           max_transaction_amount?: number;
           daily_limit_percentage?: number;
           reward_approval_threshold?: number;
+          slack_team_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -42,6 +44,7 @@ export interface Database {
           max_transaction_amount?: number;
           daily_limit_percentage?: number;
           reward_approval_threshold?: number;
+          slack_team_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -54,13 +57,18 @@ export interface Database {
           email: string;
           full_name: string | null;
           avatar_url: string | null;
-          role: 'employee' | 'admin' | 'super_admin';
+          role: string;
           giving_balance: number;
           redeemable_balance: number;
           department: string | null;
           active: boolean;
           created_at: string;
           updated_at: string;
+          username: string | null;
+          job_title: string | null;
+          bio: string | null;
+          portfolio_url: string | null;
+          profile_picture_path: string | null;
         };
         Insert: {
           id?: string;
@@ -69,13 +77,18 @@ export interface Database {
           email: string;
           full_name?: string | null;
           avatar_url?: string | null;
-          role?: 'employee' | 'admin' | 'super_admin';
+          role?: string;
           giving_balance?: number;
           redeemable_balance?: number;
           department?: string | null;
           active?: boolean;
           created_at?: string;
           updated_at?: string;
+          username?: string | null;
+          job_title?: string | null;
+          bio?: string | null;
+          portfolio_url?: string | null;
+          profile_picture_path?: string | null;
         };
         Update: {
           id?: string;
@@ -84,13 +97,18 @@ export interface Database {
           email?: string;
           full_name?: string | null;
           avatar_url?: string | null;
-          role?: 'employee' | 'admin' | 'super_admin';
+          role?: string;
           giving_balance?: number;
           redeemable_balance?: number;
           department?: string | null;
           active?: boolean;
           created_at?: string;
           updated_at?: string;
+          username?: string | null;
+          job_title?: string | null;
+          bio?: string | null;
+          portfolio_url?: string | null;
+          profile_picture_path?: string | null;
         };
       };
       transactions: {
@@ -384,6 +402,79 @@ export interface Database {
           updated_at?: string;
         };
       };
+      slack_identities: {
+        Row: {
+          id: string;
+          profile_id: string;
+          slack_user_id: string;
+          slack_team_id: string;
+          slack_email: string | null;
+          access_token: string;
+          refresh_token: string | null;
+          token_expires_at: string | null;
+          scope: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          slack_user_id: string;
+          slack_team_id: string;
+          slack_email?: string | null;
+          access_token: string;
+          refresh_token?: string | null;
+          token_expires_at?: string | null;
+          scope?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          slack_user_id?: string;
+          slack_team_id?: string;
+          slack_email?: string | null;
+          access_token?: string;
+          refresh_token?: string | null;
+          token_expires_at?: string | null;
+          scope?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      slack_memberships: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          slack_user_id: string;
+          slack_team_id: string;
+          profile_id: string | null;
+          is_active: boolean;
+          joined_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          slack_user_id: string;
+          slack_team_id: string;
+          profile_id?: string | null;
+          is_active?: boolean;
+          joined_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          workspace_id?: string;
+          slack_user_id?: string;
+          slack_team_id?: string;
+          profile_id?: string | null;
+          is_active?: boolean;
+          joined_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       current_profile: {
@@ -462,6 +553,49 @@ export interface Database {
           p_avatar_url?: string;
         };
         Returns: string;
+      };
+      get_slack_identity_by_profile: {
+        Args: {
+          p_profile_id: string;
+          p_team_id?: string;
+        };
+        Returns: {
+          id: string;
+          profile_id: string;
+          slack_user_id: string;
+          slack_team_id: string;
+          slack_email: string | null;
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
+      get_profile_by_slack_user: {
+        Args: {
+          p_slack_user_id: string;
+          p_team_id: string;
+        };
+        Returns: {
+          id: string;
+          auth_user_id: string;
+          workspace_id: string;
+          email: string;
+          full_name: string | null;
+          role: string;
+        }[];
+      };
+      is_workspace_linked_to_slack: {
+        Args: {
+          p_workspace_id: string;
+          p_team_id: string;
+        };
+        Returns: boolean;
+      };
+      link_workspace_to_slack_team: {
+        Args: {
+          p_workspace_id: string;
+          p_team_id: string;
+        };
+        Returns: boolean;
       };
     };
     Enums: {

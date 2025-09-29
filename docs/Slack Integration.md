@@ -15,7 +15,8 @@
 ## Slash Commands and API Triggering
 - Define slash commands (e.g., `/send-karma`) with Slack pointing to a signed endpoint.
 - When invoked, resolve the Slack user via `SlackIdentity`, ensuring they belong to the linked workspace.
-- Parse command payloads to identify recipients by Slack ID, translating them to workspace users before calling internal APIs.
+- Parse command payloads to identify recipients by Slack mention tokens (e.g., `<@U123ABC>`), extract the Slack user ID, and translate it to the corresponding workspace user before calling internal APIs.
+- Accept optional raw Slack user IDs in the command arguments for cases where automations send the command, performing the same lookup to resolve the workspace user.
 - If a recipient lacks a Slack link, respond with guidance to connect or fall back to in-app notifications.
 
 ## Multi-Provider Accounts

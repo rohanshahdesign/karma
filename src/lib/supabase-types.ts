@@ -22,6 +22,8 @@ export type Transaction = Tables<'transactions'>;
 export type Invitation = Tables<'invitations'>;
 export type PendingUser = Tables<'pending_users'>;
 export type DailySentKarma = Tables<'daily_sent_karma'>;
+export type SlackIdentity = Tables<'slack_identities'>;
+export type SlackMembership = Tables<'slack_memberships'>;
 
 // ============================================================================
 // INSERT TYPES
@@ -38,6 +40,10 @@ export type PendingUserInsert =
   Database['public']['Tables']['pending_users']['Insert'];
 export type DailySentKarmaInsert =
   Database['public']['Tables']['daily_sent_karma']['Insert'];
+export type SlackIdentityInsert =
+  Database['public']['Tables']['slack_identities']['Insert'];
+export type SlackMembershipInsert =
+  Database['public']['Tables']['slack_memberships']['Insert'];
 
 // ============================================================================
 // UPDATE TYPES
@@ -54,6 +60,10 @@ export type PendingUserUpdate =
   Database['public']['Tables']['pending_users']['Update'];
 export type DailySentKarmaUpdate =
   Database['public']['Tables']['daily_sent_karma']['Update'];
+export type SlackIdentityUpdate =
+  Database['public']['Tables']['slack_identities']['Update'];
+export type SlackMembershipUpdate =
+  Database['public']['Tables']['slack_memberships']['Update'];
 
 // ============================================================================
 // RPC FUNCTION TYPES
@@ -213,6 +223,23 @@ export interface TransactionWithProfiles extends Transaction {
 export interface InvitationWithDetails extends Invitation {
   workspace: Workspace;
   created_by_profile: Profile;
+}
+
+export interface SlackIdentityWithProfile extends SlackIdentity {
+  profile: Profile;
+}
+
+export interface SlackMembershipWithProfile extends SlackMembership {
+  profile: Profile;
+  workspace: Workspace;
+}
+
+export interface ProfileWithSlackIdentity extends Profile {
+  slack_identities: SlackIdentity[];
+}
+
+export interface WorkspaceWithSlackIntegration extends Workspace {
+  slack_memberships: SlackMembership[];
 }
 
 // ============================================================================
@@ -448,6 +475,8 @@ export const TABLE_NAMES = {
   INVITATIONS: 'invitations',
   PENDING_USERS: 'pending_users',
   DAILY_SENT_KARMA: 'daily_sent_karma',
+  SLACK_IDENTITIES: 'slack_identities',
+  SLACK_MEMBERSHIPS: 'slack_memberships',
 } as const;
 
 export const RPC_FUNCTIONS = {
@@ -457,6 +486,10 @@ export const RPC_FUNCTIONS = {
   DEMOTE_ADMIN_TO_EMPLOYEE: 'demote_admin_to_employee',
   IS_MEMBER_OF_WORKSPACE: 'is_member_of_workspace',
   IS_ADMIN_OF_WORKSPACE: 'is_admin_of_workspace',
+  GET_SLACK_IDENTITY_BY_PROFILE: 'get_slack_identity_by_profile',
+  GET_PROFILE_BY_SLACK_USER: 'get_profile_by_slack_user',
+  IS_WORKSPACE_LINKED_TO_SLACK: 'is_workspace_linked_to_slack',
+  LINK_WORKSPACE_TO_SLACK_TEAM: 'link_workspace_to_slack_team',
 } as const;
 
 export const VIEW_NAMES = {

@@ -59,8 +59,13 @@ export default function LoginPage() {
             Sign In with Google
           </button>
           <p className="text-sm text-gray-500">
-            More auth options coming soon...
+            New to the platform? Start with Google sign-in above.
           </p>
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <p className="text-sm text-gray-700 mb-4">
+              Already have an account? Connect Slack after signing in.
+            </p>
+          </div>
         </div>
       </div>
     </div>
