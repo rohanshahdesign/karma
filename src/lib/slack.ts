@@ -207,18 +207,20 @@ export async function isWorkspaceLinkedToSlack(
 }
 
 export async function getWorkspaceBySlackTeam(teamId: string): Promise<Workspace | null> {
-  const { data, error } = await supabaseServer
-    .from('workspaces')
-    .select('*')
-    .eq('slack_team_id', teamId)
-    .maybeSingle();
+  const { data, error } = await supabaseServer.rpc('get_workspace_by_slack_team', {
+    p_team_id: teamId,
+  });
 
   if (error) {
     console.error('Error getting workspace by Slack team:', error);
     return null;
   }
 
-  return data;
+  if (!data || data.length === 0) {
+    return null;
+  }
+
+  return data[0] as Workspace;
 }
 
 // ============================================================================
