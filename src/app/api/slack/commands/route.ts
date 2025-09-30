@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       command: payload.command,
       team_id: payload.team_id,
       user_id: payload.user_id,
-      text: payload.text ? '[REDACTED]' : undefined,
+      text: payload.text,
     });
 
     // Handle the command
