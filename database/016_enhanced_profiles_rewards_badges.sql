@@ -514,8 +514,7 @@ BEGIN
   
   -- Update invitation usage count
   UPDATE public.invitations
-  SET uses_count = uses_count + 1,
-      updated_at = now()
+  SET uses_count = uses_count + 1
   WHERE id = v_invitation.id;
   
   -- Create default badges for workspace if none exist

@@ -50,7 +50,7 @@ begin
 
   -- Update invitation usage count
   update public.invitations
-  set uses_count = uses_count + 1, updated_at = now()
+  set uses_count = uses_count + 1
   where id = v_invitation_id;
 
   -- Clean up any pending_users entry
