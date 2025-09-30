@@ -1,0 +1,18 @@
+Database error: {
+  code: '23505',
+  details: 'Key (slack_user_id, slack_team_id)=(U09HREUMHU2, T09HREUM7J6) already exists.',
+  hint: null,
+  message: 'duplicate key value violates unique constraint "slack_identities_slack_user_id_slack_team_id_key"'
+}
+
+Error saving Slack identity: Error [DatabaseError]: Resource already exists
+    at f (.next/server/chunks/5916.js:1:2312)
+    at g (.next/server/chunks/5916.js:1:758)
+    at async y (.next/server/app/api/auth/slack/callback/route.js:1:2461)
+    at async k (.next/server/app/api/auth/slack/callback/route.js:1:6728)
+    at async g (.next/server/app/api/auth/slack/callback/route.js:1:7731)
+    at async F (.next/server/app/api/auth/slack/callback/route.js:1:8853) {
+  code: 'CONFLICT',
+  status: 409,
+  details: undefined
+}

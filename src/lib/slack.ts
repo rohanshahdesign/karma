@@ -61,13 +61,38 @@ export async function saveSlackIdentity(
   const { data, error } = await supabaseServer
     .from('slack_identities')
     .upsert(slackIdentity, {
-      onConflict: 'profile_id,slack_team_id',
+      onConflict: 'slack_user_id,slack_team_id',
     })
     .select()
     .single();
 
-  if (error) handleDatabaseError(error);
-  return data;
+  if (!error) {
+    return data;
+  }
+
+  if (error.code === '23505') {
+    const { data: existingIdentity, error: fetchError } = await supabaseServer
+      .from('slack_identities')
+      .select('id')
+      .eq('slack_user_id', tokens.user_id)
+      .eq('slack_team_id', tokens.team_id)
+      .maybeSingle();
+
+    if (!fetchError && existingIdentity) {
+      const { data: updatedIdentity, error: updateError } = await supabaseServer
+        .from('slack_identities')
+        .update(slackIdentity)
+        .eq('id', existingIdentity.id)
+        .select()
+        .single();
+
+      if (!updateError) {
+        return updatedIdentity;
+      }
+    }
+  }
+
+  handleDatabaseError(error);
 }
 
 export async function getSlackIdentity(
