@@ -65,16 +65,32 @@ function JoinWorkspaceForm() {
       return;
     }
 
-    // Validate invitation code exists
-    const { data: invitation, error: inviteError } = await supabase
-      .from('invitations')
-      .select('*')
-      .eq('code', invCode.toUpperCase())
-      .eq('active', true)
-      .single();
+    // Validate invitation code using server-side endpoint (bypasses RLS)
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('No active session found');
+    }
 
-    if (inviteError || !invitation) {
-      throw new Error('Invalid or expired invitation code');
+    const response = await fetch('/api/invitations/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ invite_code: invCode.toUpperCase() }),
+    });
+
+    const result = await response.json();
+    console.log('Invitation verify result:', result);
+
+    if (!response.ok || !result?.data?.valid) {
+      const message =
+        (typeof result?.message === 'string' && result.message) ||
+        (typeof result?.error === 'string' && result.error) ||
+        'Invalid or expired invitation code';
+      throw new Error(message);
     }
 
     // Set current user and show profile form
