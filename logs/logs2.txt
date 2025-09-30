@@ -1,0 +1,35 @@
+=== SUPABASE SERVER CLIENT INIT ===
+URL present: true
+Service key present: true
+Service key length: 219
+Creating Supabase server client...
+Supabase server client created: object
+RPC result: { data: [], error: null }
+No profile found for username: rohanxshah
+ GET /api/profile/rohanxshah 404 in 942ms
+=== JOIN AUTH DEBUG ===
+Authorization header present: true
+Token length: 1313
+Validating token with server-side client...
+supabaseServer type: object
+supabaseServer.auth type: object
+supabaseServer.from type: function
+Auth result: { user: true, error: null }
+User authenticated: 8d6a617d-87b5-4295-bcff-087a27829ca6 rohan.shah.design@gmail.com
+Looking up profile for user: 8d6a617d-87b5-4295-bcff-087a27829ca6
+Profile lookup result: { profile: true, error: null }
+Join auth complete: { userId: '8d6a617d-87b5-4295-bcff-087a27829ca6', hasProfile: true }
+Error: Route "/api/profile/[username]" used `params.username`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at eval (src\app\api\profile\[username]\route.ts:11:31)
+    at eval (src\lib\api-utils.ts:413:20)
+    at async eval (src\lib\api-utils.ts:580:14)
+   9 |   withJoinAuth(async (req, { params }) => {
+  10 |     try {
+> 11 |       const username = params.username;
+     |                               ^
+  12 |
+  13 |       if (!username) {
+  14 |         return NextResponse.json(
+Looking for username: rohanxshah
+Authenticated user: 8d6a617d-87b5-4295-bcff-087a27829ca6 rohan.shah.design@gmail.com
+Calling RPC with username: rohanxshah

@@ -19,7 +19,8 @@ import {
 
 // GET /api/balance/reset - Get reset history for workspace
 export const GET = withErrorHandling(
-  withAuth(async (req) => {
+  withAuth(async (req, _context) => {
+    void _context;
     const { profile } = req.user;
     const url = new URL(req.url);
     const limit = parseInt(url.searchParams.get('limit') || '50');
@@ -40,7 +41,8 @@ export const GET = withErrorHandling(
 
 // POST /api/balance/reset - Manually trigger balance reset
 export const POST = withErrorHandling(
-  withAuth(async (req) => {
+  withAuth(async (req, _context) => {
+    void _context;
     const { profile } = req.user;
     const body = await req.json();
     const { type = 'workspace', workspaceId } = body;

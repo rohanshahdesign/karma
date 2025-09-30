@@ -76,6 +76,7 @@ export function EditProfileDialog({
   };
 
   const handleAvatarChange = (imageUrl: string | null, _imagePath: string | null) => {
+    void _imagePath;
     setFormData(prev => ({
       ...prev,
       avatar_url: imageUrl,

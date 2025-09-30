@@ -1,12 +1,14 @@
--- Fix the get_profile_by_username function to resolve ambiguous column reference
+-- Fix the get_profile_by_username function to resolve ambiguous column reference and allow service clients to pass the requestor id
 -- Run this in Supabase SQL editor
 
 DROP FUNCTION IF EXISTS public.get_profile_by_username(text, uuid);
+DROP FUNCTION IF EXISTS public.get_profile_by_username(text, uuid, uuid);
 
--- Recreate the function with proper table aliases
+-- Recreate the function with proper table aliases and explicit requestor handling
 CREATE OR REPLACE FUNCTION public.get_profile_by_username(
   p_username text,
-  p_workspace_id uuid DEFAULT NULL
+  p_workspace_id uuid DEFAULT NULL,
+  p_requestor_id uuid DEFAULT NULL
 )
 RETURNS TABLE (
   id uuid,
@@ -33,18 +35,27 @@ SET search_path = public
 AS $$
 DECLARE
   v_current_workspace_id uuid;
+  v_requestor_id uuid;
 BEGIN
-  -- Get current user's workspace if not provided
+  v_requestor_id := COALESCE(p_requestor_id, auth.uid());
+
+  IF v_requestor_id IS NULL THEN
+    RETURN;
+  END IF;
+
   IF p_workspace_id IS NULL THEN
     SELECT p.workspace_id INTO v_current_workspace_id
     FROM public.profiles p
-    WHERE p.auth_user_id = auth.uid()
+    WHERE p.auth_user_id = v_requestor_id
     LIMIT 1;
   ELSE
     v_current_workspace_id := p_workspace_id;
   END IF;
+
+  IF v_current_workspace_id IS NULL THEN
+    RETURN;
+  END IF;
   
-  -- Return profile if user has access (same workspace)
   RETURN QUERY
   SELECT p.id, p.auth_user_id, p.workspace_id, p.email, p.full_name, p.avatar_url,
          p.username, p.job_title, p.bio, p.portfolio_url, p.role, p.giving_balance,
@@ -56,11 +67,11 @@ BEGIN
     AND EXISTS (
       SELECT 1 FROM public.profiles me
       WHERE me.workspace_id = p.workspace_id
-        AND me.auth_user_id = auth.uid()
+        AND me.auth_user_id = v_requestor_id
         AND me.active = true
     );
 END;
 $$;
 
 -- Grant execute permission
-GRANT EXECUTE ON FUNCTION public.get_profile_by_username(text, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_profile_by_username(text, uuid, uuid) TO authenticated;

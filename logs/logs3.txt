@@ -1,0 +1,46 @@
+=== JOIN AUTH DEBUG ===
+Authorization header present: true
+Token length: 1313
+Validating token with server-side client...
+supabaseServer type: object
+supabaseServer.auth type: object
+supabaseServer.from type: function
+Auth result: { user: true, error: null }
+User authenticated: 8d6a617d-87b5-4295-bcff-087a27829ca6 rohan.shah.design@gmail.com
+Looking up profile for user: 8d6a617d-87b5-4295-bcff-087a27829ca6
+Profile lookup result: { profile: true, error: null }
+Join auth complete: { userId: '8d6a617d-87b5-4295-bcff-087a27829ca6', hasProfile: true }
+Looking for username: rohanxshah
+Authenticated user: 8d6a617d-87b5-4295-bcff-087a27829ca6 rohan.shah.design@gmail.com
+Calling RPC with username: rohanxshah
+=== SUPABASE SERVER CLIENT INIT ===
+URL present: true
+Service key present: true
+Service key length: 219
+Creating Supabase server client...
+Supabase server client created: object
+RPC result: {
+  data: [
+    {
+      id: 'da2866d4-9054-4ca7-89be-723fce5a4d33',
+      auth_user_id: '8d6a617d-87b5-4295-bcff-087a27829ca6',
+      workspace_id: 'd8f93024-5b16-4e3a-be2c-6f3070abdb30',
+      email: 'rohan.shah.design@gmail.com',
+      full_name: 'Rohan Shah',
+      avatar_url: 'https://lh3.googleusercontent.com/a/ACg8ocKuyURoPh2LlKcoVoiVPk1LOkA_VCzOAB_VqEjgcoKflQVScw=s96-c',
+      username: 'rohanxshah',
+      job_title: 'Product designer',
+      bio: null,
+      portfolio_url: 'http://shahrohan.vercel.app/',
+      role: 'super_admin',
+      giving_balance: 100,
+      redeemable_balance: 0,
+      department: null,
+      active: true,
+      created_at: '2025-09-29T07:42:12.790571+00:00',
+      updated_at: '2025-09-29T07:42:12.790571+00:00'
+    }
+  ],
+  error: null
+}
+ GET /api/profile/rohanxshah 200 in 928ms

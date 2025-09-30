@@ -1,0 +1,31 @@
+Authorization header present: true
+Token length: 1313
+Validating token with server-side client...
+supabaseServer type: object
+supabaseServer.auth type: object
+supabaseServer.from type: function
+Auth result: { user: true, error: null }
+User authenticated: 8d6a617d-87b5-4295-bcff-087a27829ca6 rohan.shah.design@gmail.com
+Looking up profile for user: 8d6a617d-87b5-4295-bcff-087a27829ca6
+Profile lookup result: { profile: true, error: null }
+Join auth complete: { userId: '8d6a617d-87b5-4295-bcff-087a27829ca6', hasProfile: true }
+ GET /api/profile/rohanxshah 500 in 654ms
+=== SUPABASE SERVER CLIENT INIT ===
+URL present: true
+Service key present: true
+Service key length: 219
+Creating Supabase server client...
+=== JOIN AUTH DEBUG ===
+Authorization header present: true
+Token length: 1313
+Validating token with server-side client...
+supabaseServer type: object
+supabaseServer.auth type: object
+supabaseServer.from type: function
+Supabase server client created: object
+Auth result: { user: true, error: null }
+User authenticated: 8d6a617d-87b5-4295-bcff-087a27829ca6 rohan.shah.design@gmail.com
+Looking up profile for user: 8d6a617d-87b5-4295-bcff-087a27829ca6
+Profile lookup result: { profile: true, error: null }
+Join auth complete: { userId: '8d6a617d-87b5-4295-bcff-087a27829ca6', hasProfile: true }
+ GET /api/profile/rohanxshah 500 in 681ms

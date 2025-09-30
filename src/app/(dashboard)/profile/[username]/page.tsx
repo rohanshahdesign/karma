@@ -66,69 +66,11 @@ export default function UserProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Helper functions defined first to avoid hoisting issues
-  const loadProfileStats = useCallback(async (profileId: string) => {
-    try {
-      // Get transaction stats
-      const { data: transactions } = await supabase
-        .from('transactions')
-        .select('amount, sender_profile_id, receiver_profile_id, created_at')
-        .or(`sender_profile_id.eq.${profileId},receiver_profile_id.eq.${profileId}`);
-
-      const sent = transactions?.filter(t => t.sender_profile_id === profileId) || [];
-      const received = transactions?.filter(t => t.receiver_profile_id === profileId) || [];
-
-      // Badge count will be calculated from loaded badges
-      const badgesCount = userBadges.filter(b => b.earned).length;
-
-      // Calculate days since joined
-      const profile = viewedProfile;
-      const daysSinceJoined = profile ? 
-        Math.floor((new Date().getTime() - new Date(profile.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0;
-
-      setProfileStats({
-        total_sent: sent.reduce((sum, t) => sum + t.amount, 0),
-        total_received: received.reduce((sum, t) => sum + t.amount, 0),
-        transaction_count: transactions?.length || 0,
-        badges_earned: badgesCount || 0,
-        workspace_rank: null, // TODO: Calculate rank
-        days_since_joined: daysSinceJoined,
-      });
-    } catch (err) {
-      console.error('Failed to load profile stats:', err);
-    }
-  }, [userBadges, viewedProfile]);
-
-  const loadUserBadges = useCallback(async (profileId: string) => {
-    try {
-      if (!currentProfile?.workspace_id) return;
-      
-      const badges = await getWorkspaceBadges(currentProfile.workspace_id, profileId);
-      setUserBadges(badges);
-    } catch (err) {
-      console.error('Failed to load user badges:', err);
-    }
-  }, [currentProfile]);
-
-  const loadRecentTransactions = useCallback(async (profileId: string) => {
-    try {
-      const result = await getTransactionsByProfileClient(profileId, {
-        limit: 10,
-        sort: [{ field: 'created_at', order: 'desc' }]
-      });
-
-      setRecentTransactions(result.data || []);
-    } catch (err) {
-      console.error('Failed to load recent transactions:', err);
-    }
-  }, []);
-
   const loadProfileData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Get current user profile
       const current = await getCurrentProfileClient();
       if (!current) {
         setError('Authentication required');
@@ -136,44 +78,78 @@ export default function UserProfilePage() {
       }
       setCurrentProfile(current);
 
-      // Get profile by username using RPC function
       console.log('Looking for username:', username);
-      const { data: profileData, error: profileError } = await supabase.rpc(
-        'get_profile_by_username',
-        { p_username: username }
-      );
 
-      console.log('RPC result:', { data: profileData, error: profileError });
-      
-      if (profileError) {
-        console.error('RPC error details:', profileError);
-        setError(`Database error: ${profileError.message}`);
-        return;
-      }
-      
-      if (!profileData || profileData.length === 0) {
-        console.log('No profile found for username:', username);
-        setError('User not found or not in your workspace');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        setError('Authentication required');
         return;
       }
 
-      const profile = profileData[0];
+      const response = await fetch(`/api/profile/${username}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        credentials: 'include',
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        console.error('API error:', result.error);
+        setError(result.error || 'Failed to load profile');
+        return;
+      }
+
+      const profile: Profile = result.data.profile;
       setViewedProfile(profile);
 
-      // Load profile stats, badges, and transactions in parallel
-      await Promise.all([
-        loadProfileStats(profile.id),
-        loadUserBadges(profile.id),
-        loadRecentTransactions(profile.id)
+      const [badges, transactionsResult] = await Promise.all([
+        current.workspace_id
+          ? getWorkspaceBadges(current.workspace_id, profile.id)
+          : Promise.resolve<BadgeWithProgress[]>([]),
+        getTransactionsByProfileClient(profile.id, {
+          limit: 10,
+          sort: [{ field: 'created_at', order: 'desc' }],
+        }),
       ]);
 
+      const transactions = transactionsResult.data || [];
+
+      setUserBadges(badges);
+      setRecentTransactions(transactions);
+
+      const sent = transactions.filter(
+        (t) => t.sender_profile_id === profile.id
+      );
+      const received = transactions.filter(
+        (t) => t.receiver_profile_id === profile.id
+      );
+      const badgesEarned = badges.filter((b) => b.earned).length;
+      const daysSinceJoined = Math.floor(
+        (Date.now() - new Date(profile.created_at).getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+
+      setProfileStats({
+        total_sent: sent.reduce((sum, t) => sum + t.amount, 0),
+        total_received: received.reduce((sum, t) => sum + t.amount, 0),
+        transaction_count: transactions.length,
+        badges_earned: badgesEarned,
+        workspace_rank: null,
+        days_since_joined: Math.max(daysSinceJoined, 0),
+      });
     } catch (err) {
       console.error('Failed to load profile data:', err);
       setError('Failed to load profile');
     } finally {
       setLoading(false);
     }
-  }, [username, loadProfileStats, loadUserBadges, loadRecentTransactions]);
+  }, [username]);
 
   const handleProfileUpdated = useCallback((updatedProfile: Profile) => {
     setViewedProfile(updatedProfile);

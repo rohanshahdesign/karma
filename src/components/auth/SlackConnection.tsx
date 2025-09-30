@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '../ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
 import { CheckCircle, AlertCircle } from 'lucide-react';
-import { hasSlackConnected, getUserSlackIdentities, SlackIdentityPublic } from '../../lib/slack';
+import { hasSlackConnected, getUserSlackIdentities, SlackIdentityPublic } from '@/lib/slack-client';
 import { getSlackConfig } from '../../lib/env-validation';
 
 interface SlackConnectionProps {

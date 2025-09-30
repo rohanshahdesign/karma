@@ -9,6 +9,11 @@ import { DatabaseError } from './database';
 import { Profile } from './supabase-types';
 import { supabaseServer } from './supabase-server';
 
+export type RouteHandler = (
+  req: NextRequest,
+  context: RouteContext
+) => Promise<NextResponse>;
+
 // ============================================================================
 // REQUEST UTILITIES
 // ============================================================================
@@ -18,6 +23,20 @@ export interface AuthenticatedRequest extends NextRequest {
     id: string;
     email: string;
     profile: Profile;
+  };
+}
+
+export interface RouteContext {
+  params: Promise<Record<string, string | string[] | undefined>>;
+  [key: string]: unknown;
+}
+
+function ensureRouteContext(context?: RouteContext): RouteContext {
+  if (context) {
+    return context;
+  }
+  return {
+    params: Promise.resolve({} as Record<string, string | string[] | undefined>),
   };
 }
 
@@ -356,13 +375,20 @@ export function createServerErrorResponse(
 // ============================================================================
 
 export function withAuth(
-  handler: (req: AuthenticatedRequest) => Promise<NextResponse>
-) {
-  return async (req: NextRequest): Promise<NextResponse> => {
+  handler: (
+    req: AuthenticatedRequest,
+    context: RouteContext
+  ) => Promise<NextResponse>
+): RouteHandler {
+  return (async (
+    req: NextRequest,
+    context: RouteContext | undefined
+  ): Promise<NextResponse> => {
+    const resolvedContext = ensureRouteContext(context);
     try {
       const user = await getAuthenticatedUser();
       (req as AuthenticatedRequest).user = user;
-      return await handler(req as AuthenticatedRequest);
+      return await handler(req as AuthenticatedRequest, resolvedContext);
     } catch (error) {
       if (
         error &&
@@ -381,19 +407,26 @@ export function withAuth(
       }
       return createServerErrorResponse('Authentication middleware failed');
     }
-  };
+  }) as RouteHandler;
 }
 
 // Special auth middleware for join API that allows users without profiles
 export function withJoinAuth(
-  handler: (req: AuthenticatedJoinRequest) => Promise<NextResponse>
-) {
-  return async (req: NextRequest): Promise<NextResponse> => {
+  handler: (
+    req: AuthenticatedJoinRequest,
+    context: RouteContext
+  ) => Promise<NextResponse>
+): RouteHandler {
+  return (async (
+    req: NextRequest,
+    context: RouteContext | undefined
+  ): Promise<NextResponse> => {
+    const resolvedContext = ensureRouteContext(context);
     try {
       const user = await getAuthenticatedUserForJoin(req);
       (req as AuthenticatedJoinRequest).user = user;
       (req as AuthenticatedJoinRequest).supabase = supabaseServer;
-      return await handler(req as AuthenticatedJoinRequest);
+      return await handler(req as AuthenticatedJoinRequest, resolvedContext);
     } catch (error) {
       if (
         error &&
@@ -412,15 +445,21 @@ export function withJoinAuth(
       }
       return createServerErrorResponse('Join authentication middleware failed');
     }
-  };
+  }) as RouteHandler;
 }
 
 export function withPermissions(requiredPermissions: string[]) {
   return function (
-    handler: (req: AuthenticatedRequest) => Promise<NextResponse>
+    handler: (
+      req: AuthenticatedRequest,
+      context: RouteContext
+    ) => Promise<NextResponse>
   ) {
     return withAuth(
-      async (req: AuthenticatedRequest): Promise<NextResponse> => {
+      async (
+        req: AuthenticatedRequest,
+        context: RouteContext
+      ): Promise<NextResponse> => {
         try {
           const { profile } = req.user;
 
@@ -448,7 +487,7 @@ export function withPermissions(requiredPermissions: string[]) {
             return createForbiddenResponse('Insufficient permissions');
           }
 
-          return await handler(req);
+          return await handler(req, context);
         } catch (error) {
           if (
             error &&
@@ -474,10 +513,17 @@ export function withPermissions(requiredPermissions: string[]) {
 
 export function withValidation<T>(schema: { required?: string[] }) {
   return function (
-    handler: (req: AuthenticatedRequest, body: T) => Promise<NextResponse>
+    handler: (
+      req: AuthenticatedRequest,
+      body: T,
+      context: RouteContext
+    ) => Promise<NextResponse>
   ) {
     return withAuth(
-      async (req: AuthenticatedRequest): Promise<NextResponse> => {
+      async (
+        req: AuthenticatedRequest,
+        context: RouteContext
+      ): Promise<NextResponse> => {
         try {
           const body = await parseRequestBody<T>(req);
 
@@ -512,7 +558,7 @@ export function withValidation<T>(schema: { required?: string[] }) {
             return createValidationErrorResponse(errors);
           }
 
-          return await handler(req, body);
+          return await handler(req, body, context);
         } catch (error) {
           if (
             error &&
@@ -536,12 +582,14 @@ export function withValidation<T>(schema: { required?: string[] }) {
   };
 }
 
-export function withErrorHandling(
-  handler: (req: NextRequest) => Promise<NextResponse>
-) {
-  return async (req: NextRequest): Promise<NextResponse> => {
+export function withErrorHandling(handler: RouteHandler): RouteHandler {
+  return (async (
+    req: NextRequest,
+    context: RouteContext | undefined
+  ): Promise<NextResponse> => {
+    const resolvedContext = ensureRouteContext(context);
     try {
-      return await handler(req);
+      return await handler(req, resolvedContext);
     } catch (error) {
       console.error('API Error:', error);
 
@@ -579,7 +627,7 @@ export function withErrorHandling(
 
       return createServerErrorResponse('An unexpected error occurred');
     }
-  };
+  }) as RouteHandler;
 }
 
 // ============================================================================
@@ -655,8 +703,17 @@ export function handleCors(req: NextRequest): NextResponse | null {
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
 export function withRateLimit(windowMs: number, maxRequests: number) {
-  return function (handler: (req: NextRequest) => Promise<NextResponse>) {
-    return async (req: NextRequest): Promise<NextResponse> => {
+  return function (
+    handler: (
+      req: NextRequest,
+      context: RouteContext
+    ) => Promise<NextResponse>
+  ) {
+    return (async (
+      req: NextRequest,
+      context: RouteContext | undefined
+    ): Promise<NextResponse> => {
+      const resolvedContext = ensureRouteContext(context);
       // Get client IP from headers (Next.js doesn't have direct ip property)
       const forwarded = req.headers.get('x-forwarded-for');
       const realIp = req.headers.get('x-real-ip');
@@ -685,8 +742,8 @@ export function withRateLimit(windowMs: number, maxRequests: number) {
         current.count++;
       }
 
-      return await handler(req);
-    };
+      return await handler(req, resolvedContext);
+    }) as RouteHandler;
   };
 }
 
@@ -700,8 +757,17 @@ export function withCache(
   ttl: number,
   keyGenerator?: (req: NextRequest) => string
 ) {
-  return function (handler: (req: NextRequest) => Promise<NextResponse>) {
-    return async (req: NextRequest): Promise<NextResponse> => {
+  return function (
+    handler: (
+      req: NextRequest,
+      context: RouteContext
+    ) => Promise<NextResponse>
+  ) {
+    return (async (
+      req: NextRequest,
+      context: RouteContext | undefined
+    ): Promise<NextResponse> => {
+      const resolvedContext = ensureRouteContext(context);
       const cacheKey = keyGenerator ? keyGenerator(req) : req.url;
       const now = Date.now();
 
@@ -712,7 +778,7 @@ export function withCache(
       }
 
       // Execute handler
-      const response = await handler(req);
+      const response = await handler(req, resolvedContext);
 
       // Cache response
       if (response.status === 200) {
@@ -724,7 +790,7 @@ export function withCache(
       }
 
       return response;
-    };
+    }) as RouteHandler;
   };
 }
 
