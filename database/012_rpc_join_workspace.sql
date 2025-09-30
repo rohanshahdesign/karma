@@ -3,6 +3,7 @@
 
 create or replace function public.join_workspace_with_code(
   p_invitation_code text,
+  p_auth_user_id uuid,
   p_user_email text,
   p_full_name text default null,
   p_avatar_url text default null
@@ -15,10 +16,9 @@ as $$
 declare
   v_workspace_id uuid;
   v_invitation_id uuid;
-  v_auth_user uuid := auth.uid();
   v_monthly_allowance integer;
 begin
-  if v_auth_user is null then
+  if p_auth_user_id is null then
     raise exception 'Not authenticated';
   end if;
 
@@ -37,7 +37,7 @@ begin
   end if;
 
   -- Check if user is already a member
-  if exists (select 1 from public.profiles where workspace_id = v_workspace_id and auth_user_id = v_auth_user) then
+  if exists (select 1 from public.profiles where workspace_id = v_workspace_id and auth_user_id = p_auth_user_id) then
     raise exception 'User is already a member of this workspace';
   end if;
 
@@ -45,7 +45,7 @@ begin
   insert into public.profiles (
     auth_user_id, workspace_id, email, full_name, avatar_url, role, giving_balance, redeemable_balance
   ) values (
-    v_auth_user, v_workspace_id, p_user_email, p_full_name, p_avatar_url, 'employee', v_monthly_allowance, 0
+    p_auth_user_id, v_workspace_id, p_user_email, p_full_name, p_avatar_url, 'employee', v_monthly_allowance, 0
   );
 
   -- Update invitation usage count
@@ -54,10 +54,10 @@ begin
   where id = v_invitation_id;
 
   -- Clean up any pending_users entry
-  delete from public.pending_users where auth_user_id = v_auth_user;
+  delete from public.pending_users where auth_user_id = p_auth_user_id;
 
   return v_workspace_id;
 end;
 $$;
 
-grant execute on function public.join_workspace_with_code(text, text, text, text) to authenticated;
+grant execute on function public.join_workspace_with_code(text, uuid, text, text, text) to authenticated;

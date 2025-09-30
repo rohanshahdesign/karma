@@ -6,7 +6,7 @@
 
 -- Drop RPC functions first
 DROP FUNCTION IF EXISTS create_workspace_with_owner(text, text, text, text, text, text);
-DROP FUNCTION IF EXISTS join_workspace_with_code(text, text, text, text, text);
+DROP FUNCTION IF EXISTS join_workspace_with_code(text, uuid, text, text, text);
 
 -- Drop tables (in reverse dependency order)
 DROP TABLE IF EXISTS transactions CASCADE;

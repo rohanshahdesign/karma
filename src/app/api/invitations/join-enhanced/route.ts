@@ -70,6 +70,7 @@ export const POST = withErrorHandling(
         'join_workspace_with_code_enhanced',
         {
           p_invitation_code: body.invite_code.toUpperCase(),
+          p_auth_user_id: req.user.id,
           p_user_email: email,
           p_full_name: googleFullName || null,
           p_avatar_url: body.profile.profile_picture_url || googleAvatarUrl || null,

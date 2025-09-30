@@ -1,0 +1,13 @@
+Enhanced RPC error: {
+  code: '23502',
+  details: 'Failing row contains (eb1c71bf-cdec-4a44-8536-4c9338087eda, null, d8f93024-5b16-4e3a-be2c-6f3070abdb30, eziokun332@gmail.com, Ezio Kun, https://lh3.googleusercontent.com/a/ACg8ocJhThOsyc_c5YNk4clXT1CY..., employee, 100, 0, null, t, 2025-09-30 07:17:06.469823+00, 2025-09-30 07:17:06.469823+00, ezio, Product Designer, xyz, null, null).',
+  hint: null,
+  message: 'null value in column "auth_user_id" of relation "profiles" violates not-null constraint'
+}
+
+Enhanced join API error: {
+  code: '23502',
+  details: 'Failing row contains (eb1c71bf-cdec-4a44-8536-4c9338087eda, null, d8f93024-5b16-4e3a-be2c-6f3070abdb30, eziokun332@gmail.com, Ezio Kun, https://lh3.googleusercontent.com/a/ACg8ocJhThOsyc_c5YNk4clXT1CY..., employee, 100, 0, null, t, 2025-09-30 07:17:06.469823+00, 2025-09-30 07:17:06.469823+00, ezio, Product Designer, xyz, null, null).',
+  hint: null,
+  message: 'null value in column "auth_user_id" of relation "profiles" violates not-null constraint'
+}

@@ -413,6 +413,7 @@ GRANT EXECUTE ON FUNCTION public.add_activity_feed_entry(uuid, text, uuid, uuid,
 -- Update join_workspace_with_code to handle new profile fields
 CREATE OR REPLACE FUNCTION public.join_workspace_with_code_enhanced(
   p_invitation_code text,
+  p_auth_user_id uuid,
   p_user_email text,
   p_full_name text DEFAULT NULL,
   p_avatar_url text DEFAULT NULL,
@@ -432,6 +433,11 @@ DECLARE
   v_profile_id uuid;
   v_final_username text;
 BEGIN
+  -- Validate authentication context
+  IF p_auth_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authenticated user id is required';
+  END IF;
+
   -- Validate invitation code
   SELECT * INTO v_invitation
   FROM public.invitations
@@ -491,7 +497,7 @@ BEGIN
     redeemable_balance,
     active
   ) VALUES (
-    auth.uid(),
+    p_auth_user_id,
     v_workspace_id,
     p_user_email,
     p_full_name,
@@ -542,7 +548,7 @@ END;
 $$;
 
 -- Grant execute permission
-GRANT EXECUTE ON FUNCTION public.join_workspace_with_code_enhanced(text, text, text, text, text, text, text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.join_workspace_with_code_enhanced(text, uuid, text, text, text, text, text, text, text) TO authenticated;
 
 -- ============================================================================
 -- PHASE 9: RLS Policies for New Tables
