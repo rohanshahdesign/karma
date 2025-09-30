@@ -6,7 +6,6 @@ import { Button } from '../ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import { hasSlackConnected, getUserSlackIdentities, SlackIdentityPublic } from '@/lib/slack-client';
-import { getSlackConfig } from '../../lib/env-validation';
 
 interface SlackConnectionProps {
   profileId: string;
@@ -20,6 +19,8 @@ export default function SlackConnection({ profileId, onConnectionChange }: Slack
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [slackAvailable, setSlackAvailable] = useState<boolean>(true);
   const [developmentNote, setDevelopmentNote] = useState<string | null>(null);
+  const [environment, setEnvironment] = useState<string | null>(null);
+  const [forceSlackLocal, setForceSlackLocal] = useState<boolean>(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -65,16 +66,44 @@ export default function SlackConnection({ profileId, onConnectionChange }: Slack
 
   // Check Slack availability and load initial connection status
   useEffect(() => {
-    const slackConfig = getSlackConfig();
-    setSlackAvailable(slackConfig.isReady);
-    setDevelopmentNote(slackConfig.developmentNote || null);
-    
-    if (slackConfig.isReady) {
-      loadConnectionStatus();
-    } else {
-      setIsLoading(false);
-    }
-  }, [profileId, loadConnectionStatus]);
+    const checkAvailability = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/slack/config', { cache: 'no-store' });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch Slack availability');
+        }
+
+        const data: {
+          isReady: boolean;
+          developmentNote?: string;
+          environment?: string;
+          forceSlackLocal?: boolean;
+        } = await response.json();
+
+        setSlackAvailable(data.isReady);
+        setDevelopmentNote(data.developmentNote || null);
+        setEnvironment(data.environment ?? null);
+        setForceSlackLocal(Boolean(data.forceSlackLocal));
+
+        if (data.isReady) {
+          await loadConnectionStatus();
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking Slack availability:', error);
+        setSlackAvailable(false);
+        setDevelopmentNote(
+          'Slack configuration could not be loaded. Ensure production environment variables are set.'
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAvailability();
+  }, [loadConnectionStatus]);
 
   const handleConnectSlack = () => {
     setIsConnecting(true);
@@ -129,6 +158,16 @@ export default function SlackConnection({ profileId, onConnectionChange }: Slack
     );
   }
 
+  const isDevelopmentEnvironment = environment === 'development' && !forceSlackLocal;
+  const unavailableLabel = isDevelopmentEnvironment
+    ? '(Unavailable in Development)'
+    : '(Unavailable)';
+  const resolvedNote =
+    developmentNote ||
+    (isDevelopmentEnvironment
+      ? 'Slack integration requires HTTPS and is only available in production environments.'
+      : 'Slack integration configuration is incomplete. Please verify environment variables.');
+
   // Show development notice if Slack is not available
   if (!slackAvailable) {
     return (
@@ -139,24 +178,33 @@ export default function SlackConnection({ profileId, onConnectionChange }: Slack
               <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
             </svg>
             Slack Integration
-            <span className="text-sm font-normal text-gray-500">(Unavailable in Development)</span>
+            <span className="text-sm font-normal text-gray-500">{unavailableLabel}</span>
           </CardTitle>
           <CardDescription>
-            Slack integration requires HTTPS and is only available in production environments
+            {resolvedNote}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-start space-x-3 text-sm text-gray-600">
             <AlertCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="font-medium">Development Mode Limitation</p>
-              <p className="mb-2">{developmentNote}</p>
-              <div className="text-xs text-gray-500 space-y-1">
-                <p><strong>To test Slack integration:</strong></p>
-                <p>• Use ngrok to expose localhost with HTTPS</p>
-                <p>• Deploy to staging/production environment</p>
-                <p>• Set FORCE_SLACK_LOCAL=true in .env.local (advanced)</p>
-              </div>
+              <p className="font-medium">{isDevelopmentEnvironment ? 'Development Mode Limitation' : 'Slack Configuration Required'}</p>
+              <p className="mb-2">{resolvedNote}</p>
+              {isDevelopmentEnvironment ? (
+                <div className="text-xs text-gray-500 space-y-1">
+                  <p><strong>To test Slack integration:</strong></p>
+                  <p>• Use ngrok to expose localhost with HTTPS</p>
+                  <p>• Deploy to staging/production environment</p>
+                  <p>• Set FORCE_SLACK_LOCAL=true in .env.local (advanced)</p>
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500 space-y-1">
+                  <p><strong>Production checklist:</strong></p>
+                  <p>• Ensure all Slack credentials are configured in environment variables</p>
+                  <p>• Verify SLACK_REDIRECT_URI matches the deployed domain</p>
+                  <p>• Redeploy after updating secrets if changes were made</p>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
