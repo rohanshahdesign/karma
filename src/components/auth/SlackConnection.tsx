@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import { hasSlackConnected, getUserSlackIdentities, SlackIdentityPublic } from '@/lib/slack-client';
+import supabase from '@/lib/supabase';
 
 interface SlackConnectionProps {
   profileId: string;
@@ -105,14 +106,50 @@ export default function SlackConnection({ profileId, onConnectionChange }: Slack
     checkAvailability();
   }, [loadConnectionStatus]);
 
-  const handleConnectSlack = () => {
+  const handleConnectSlack = async () => {
     setIsConnecting(true);
-    
-    // Get current URL for redirect after OAuth
-    const currentUrl = window.location.pathname + window.location.search;
-    const slackOAuthUrl = `/api/auth/slack?redirect_to=${encodeURIComponent(currentUrl)}`;
-    
-    window.location.href = slackOAuthUrl;
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('No active session found');
+      }
+
+      const currentUrl = window.location.pathname + window.location.search;
+
+      const response = await fetch('/api/auth/slack', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ redirect_to: currentUrl }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        const message =
+          (typeof result?.error === 'string' && result.error) ||
+          'Failed to initiate Slack OAuth';
+        throw new Error(message);
+      }
+
+      const data: { url?: string } = await response.json();
+      if (!data.url) {
+        throw new Error('Missing Slack OAuth URL in response');
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      console.error('Error initiating Slack OAuth:', error);
+      const message =
+        error instanceof Error ? error.message : 'Could not start Slack OAuth';
+      alert(message);
+      setIsConnecting(false);
+    }
   };
 
   const handleDisconnectSlack = async (teamId: string) => {
@@ -121,10 +158,19 @@ export default function SlackConnection({ profileId, onConnectionChange }: Slack
     }
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('No active session found');
+      }
+
       const response = await fetch('/api/auth/slack/disconnect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           team_id: teamId,
@@ -136,8 +182,12 @@ export default function SlackConnection({ profileId, onConnectionChange }: Slack
         await loadConnectionStatus();
         onConnectionChange?.(false);
       } else {
-        console.error('Failed to disconnect Slack');
-        alert('Failed to disconnect Slack. Please try again.');
+        const result = await response.json().catch(() => null);
+        const message =
+          (typeof result?.error === 'string' && result.error) ||
+          'Failed to disconnect Slack';
+        console.error('Failed to disconnect Slack:', message);
+        alert(`${message}. Please try again.`);
       }
     } catch (error) {
       console.error('Error disconnecting Slack:', error);

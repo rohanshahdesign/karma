@@ -4,18 +4,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getSlackConfig } from '../../../../lib/env-validation';
+import { getAuthenticatedUserForJoin } from '../../../../lib/api-utils';
 
-export async function GET(request: NextRequest) {
+interface SlackInitiatePayload {
+  redirect_to?: string;
+}
+
+export async function POST(request: NextRequest) {
   try {
-    // Check if Slack integration is ready
     const slackConfig = getSlackConfig();
-    
+
     if (!slackConfig.isReady) {
       console.error('Slack integration not available:', slackConfig.developmentNote);
       return NextResponse.json(
-        { 
-          error: 'Slack OAuth not available', 
-          note: slackConfig.developmentNote || 'Slack OAuth not configured'
+        {
+          error: 'Slack OAuth not available',
+          note: slackConfig.developmentNote || 'Slack OAuth not configured',
         },
         { status: 503 }
       );
@@ -23,7 +27,6 @@ export async function GET(request: NextRequest) {
 
     const { clientId, redirectUri } = slackConfig;
 
-    // Ensure clientId and redirectUri are defined (they should be since slackConfig.isReady is true)
     if (!clientId || !redirectUri) {
       console.error('Missing clientId or redirectUri despite isReady being true');
       return NextResponse.json(
@@ -32,41 +35,44 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get redirect URL from query params
-    const { searchParams } = new URL(request.url);
-    const redirectTo = searchParams.get('redirect_to') || '/home';
+    // Authenticate the user using the bearer token
+    const user = await getAuthenticatedUserForJoin(request);
 
-    // Create a unique state value for CSRF protection
-    const oauthState = crypto.randomUUID();
-    
-    // Store the state and redirect URL in cookies for verification later
-    const cookieStore = await cookies();
-    cookieStore.set('slack_oauth_state', oauthState, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 600, // 10 minutes
-    });
-    
-    if (redirectTo) {
-      cookieStore.set('slack_oauth_redirect_to', redirectTo, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 600, // 10 minutes
-      });
+    let body: SlackInitiatePayload = {};
+    try {
+      body = (await request.json()) as SlackInitiatePayload;
+    } catch {
+      body = {};
     }
 
-    // Slack OAuth scopes needed for the integration
+    const redirectTo = body.redirect_to || '/home';
+
+    const oauthState = crypto.randomUUID();
+
+    const cookieStore = await cookies();
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      maxAge: 600,
+      path: '/',
+    };
+
+    cookieStore.set('slack_oauth_state', oauthState, cookieOptions);
+    cookieStore.set('slack_oauth_user', user.id, cookieOptions);
+
+    if (redirectTo) {
+      cookieStore.set('slack_oauth_redirect_to', redirectTo, cookieOptions);
+    }
+
     const scopes = [
-      'users:read',           // Read user information
-      'users:read.email',     // Read user email
-      'chat:write',           // Send messages (for notifications)
-      'commands',             // Handle slash commands
-      'team:read',            // Read team information
+      'users:read',
+      'users:read.email',
+      'chat:write',
+      'commands',
+      'team:read',
     ].join(',');
 
-    // Build Slack OAuth URL
     const slackAuthUrl = new URL('https://slack.com/oauth/v2/authorize');
     slackAuthUrl.searchParams.set('client_id', clientId);
     slackAuthUrl.searchParams.set('scope', scopes);
@@ -74,21 +80,39 @@ export async function GET(request: NextRequest) {
     slackAuthUrl.searchParams.set('state', oauthState);
     slackAuthUrl.searchParams.set('user_scope', 'identity.basic,identity.email');
 
-    // Log OAuth initiation for debugging
     console.log('Initiating Slack OAuth:', {
       client_id: clientId,
       redirect_uri: redirectUri,
       scopes,
       state: oauthState,
+      user_id: user.id,
     });
 
-    // Redirect to Slack OAuth
-    return NextResponse.redirect(slackAuthUrl.toString());
+    return NextResponse.json({ url: slackAuthUrl.toString() });
   } catch (error) {
     console.error('Error initiating Slack OAuth:', error);
+
+    if (
+      error &&
+      typeof error === 'object' &&
+      'status' in error &&
+      typeof (error as { status?: number }).status === 'number'
+    ) {
+      const status = (error as { status: number }).status;
+      const message = (error as { message?: string }).message || 'Slack OAuth initiation failed';
+      return NextResponse.json({ error: message }, { status });
+    }
+
     return NextResponse.json(
       { error: 'Failed to initiate Slack OAuth' },
       { status: 500 }
     );
   }
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { error: 'Use POST with authorization to initiate Slack OAuth' },
+    { status: 405 }
+  );
 }

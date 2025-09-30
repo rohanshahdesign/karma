@@ -3,7 +3,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { supabaseServer } from '../../../../../lib/supabase-server';
 import { saveSlackIdentity, linkWorkspaceToSlackTeam, SlackOAuthTokens } from '../../../../../lib/slack';
 import { getProfileByAuthUserId } from '../../../../../lib/database';
 
@@ -41,9 +40,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const authUserId = cookieStore.get('slack_oauth_user')?.value;
+
     // Clear the OAuth state cookies
     cookieStore.delete('slack_oauth_state');
     cookieStore.delete('slack_oauth_redirect_to');
+    cookieStore.delete('slack_oauth_user');
+
+    if (!authUserId) {
+      console.error('No user context found for Slack linking');
+      return NextResponse.redirect(
+        new URL('/auth/error?error=slack_oauth_no_user', request.url)
+      );
+    }
 
     // Exchange authorization code for access token
     const tokenResponse = await exchangeCodeForToken(code);
@@ -54,17 +63,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get current user from Supabase session
-    const { data: { user } } = await supabaseServer.auth.getUser();
-    if (!user) {
-      console.error('No authenticated user for Slack linking');
-      return NextResponse.redirect(
-        new URL('/auth/error?error=slack_oauth_no_user', request.url)
-      );
-    }
-
     // Get user's profile using server-side function
-    const profile = await getProfileByAuthUserId(user.id);
+    const profile = await getProfileByAuthUserId(authUserId);
     if (!profile) {
       console.error('No profile found for authenticated user');
       return NextResponse.redirect(

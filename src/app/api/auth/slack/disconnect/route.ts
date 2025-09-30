@@ -2,20 +2,13 @@
 // Allows users to disconnect their Slack integration
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '../../../../../lib/supabase-server';
 import { deleteSlackIdentity } from '../../../../../lib/slack';
 import { getProfileByAuthUserId } from '../../../../../lib/database';
+import { getAuthenticatedUserForJoin } from '../../../../../lib/api-utils';
 
 export async function POST(request: NextRequest) {
   try {
-    // Get the authenticated user
-    const { data: { user } } = await supabaseServer.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
+    const user = await getAuthenticatedUserForJoin(request);
 
     // Get user's profile
     const profile = await getProfileByAuthUserId(user.id);
@@ -50,6 +43,18 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error disconnecting Slack:', error);
+
+    if (
+      error &&
+      typeof error === 'object' &&
+      'status' in error &&
+      typeof (error as { status?: number }).status === 'number'
+    ) {
+      const status = (error as { status: number }).status;
+      const message = (error as { message?: string }).message || 'Failed to disconnect Slack integration';
+      return NextResponse.json({ error: message }, { status });
+    }
+
     return NextResponse.json(
       { error: 'Failed to disconnect Slack integration' },
       { status: 500 }
