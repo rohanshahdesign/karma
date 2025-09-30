@@ -97,10 +97,39 @@ export function parseKarmaCommand(text: string): {
     };
   }
 
-  // Split command into parts
-  const parts = text.trim().split(/\s+/);
-  
-  if (parts.length < 2) {
+  const trimmed = text.trim();
+
+  // Extract the recipient portion, accounting for Slack mention syntax
+  let recipientToken: string;
+  let remainingText: string;
+
+  if (trimmed.startsWith('<@')) {
+    const closingIndex = trimmed.indexOf('>');
+    if (closingIndex === -1) {
+      return {
+        recipient: null,
+        amount: null,
+        message: null,
+        error: 'Invalid recipient format. Use Slack @mentions or a Slack user ID.',
+      };
+    }
+    recipientToken = trimmed.slice(0, closingIndex + 1);
+    remainingText = trimmed.slice(closingIndex + 1).trim();
+  } else {
+    const parts = trimmed.split(/\s+/);
+    if (parts.length < 2) {
+      return {
+        recipient: null,
+        amount: null,
+        message: null,
+        error: 'Usage: `/send-karma @user amount [message]`\nExample: `/send-karma @john 10 Great job!`',
+      };
+    }
+    recipientToken = parts[0];
+    remainingText = trimmed.slice(recipientToken.length).trim();
+  }
+
+  if (!remainingText) {
     return {
       recipient: null,
       amount: null,
@@ -110,15 +139,14 @@ export function parseKarmaCommand(text: string): {
   }
 
   // Extract recipient (either @mention or user ID)
-  const recipientPart = parts[0];
   let recipient: string | null = null;
 
-  if (recipientPart.startsWith('<@') && recipientPart.endsWith('>')) {
+  if (recipientToken.startsWith('<@') && recipientToken.endsWith('>')) {
     // Parse Slack mention format: <@U123ABC> or <@U123ABC|username>
-    recipient = parseSlackMention(recipientPart);
-  } else if (validateSlackUserId(recipientPart)) {
+    recipient = parseSlackMention(recipientToken);
+  } else if (validateSlackUserId(recipientToken)) {
     // Raw Slack user ID
-    recipient = recipientPart;
+    recipient = recipientToken;
   }
 
   if (!recipient) {
@@ -131,7 +159,8 @@ export function parseKarmaCommand(text: string): {
   }
 
   // Extract amount
-  const amountPart = parts[1];
+  const amountParts = remainingText.split(/\s+/);
+  const amountPart = amountParts[0];
   const amount = parseInt(amountPart);
 
   if (isNaN(amount) || amount <= 0) {
@@ -144,7 +173,7 @@ export function parseKarmaCommand(text: string): {
   }
 
   // Extract message (everything after amount)
-  const message = parts.slice(2).join(' ') || null;
+  const message = amountParts.slice(1).join(' ') || null;
 
   return {
     recipient,
