@@ -88,8 +88,6 @@ export function parseKarmaCommand(text: string): {
   recipient: string | null;
   recipientHandle: string | null;
   rawRecipient: string | null;
-  recipientHandle: string | null;
-  rawRecipient: string | null;
   amount: number | null;
   message: string | null;
   error: string | null;
