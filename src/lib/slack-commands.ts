@@ -6,7 +6,9 @@ import {
   getProfileBySlackUser, 
   getWorkspaceBySlackTeam,
   validateSlackUserId,
-  parseSlackMention 
+  parseSlackMention,
+  getSlackIdentity,
+  getDecryptedSlackTokens
 } from './slack';
 import { validateAndCreateTransaction } from './database';
 
@@ -84,6 +86,10 @@ export function verifySlackSignature(
 // Parse /send-karma command text
 export function parseKarmaCommand(text: string): {
   recipient: string | null;
+  recipientHandle: string | null;
+  rawRecipient: string | null;
+  recipientHandle: string | null;
+  rawRecipient: string | null;
   amount: number | null;
   message: string | null;
   error: string | null;
@@ -91,6 +97,8 @@ export function parseKarmaCommand(text: string): {
   if (!text || text.trim() === '') {
     return {
       recipient: null,
+      recipientHandle: null,
+      rawRecipient: null,
       amount: null,
       message: null,
       error: 'Usage: `/send-karma @user amount [message]`'
@@ -108,6 +116,8 @@ export function parseKarmaCommand(text: string): {
     if (closingIndex === -1) {
       return {
         recipient: null,
+        recipientHandle: null,
+        rawRecipient: null,
         amount: null,
         message: null,
         error: 'Invalid recipient format. Use Slack @mentions or a Slack user ID.',
@@ -120,6 +130,8 @@ export function parseKarmaCommand(text: string): {
     if (parts.length < 2) {
       return {
         recipient: null,
+        recipientHandle: null,
+        rawRecipient: null,
         amount: null,
         message: null,
         error: 'Usage: `/send-karma @user amount [message]`\nExample: `/send-karma @john 10 Great job!`',
@@ -132,55 +144,169 @@ export function parseKarmaCommand(text: string): {
   if (!remainingText) {
     return {
       recipient: null,
+      recipientHandle: null,
+      rawRecipient: recipientToken,
       amount: null,
       message: null,
       error: 'Usage: `/send-karma @user amount [message]`\nExample: `/send-karma @john 10 Great job!`'
     };
   }
 
-  // Extract recipient (either @mention or user ID)
-  let recipient: string | null = null;
-
-  if (recipientToken.startsWith('<@') && recipientToken.endsWith('>')) {
-    // Parse Slack mention format: <@U123ABC> or <@U123ABC|username>
-    recipient = parseSlackMention(recipientToken);
-  } else if (validateSlackUserId(recipientToken)) {
-    // Raw Slack user ID
-    recipient = recipientToken;
-  }
-
-  if (!recipient) {
-    return {
-      recipient: null,
-      amount: null,
-      message: null,
-      error: 'Invalid recipient. Use @mention or Slack user ID.\nExample: `/send-karma @john 10 Great job!`'
-    };
-  }
-
   // Extract amount
   const amountParts = remainingText.split(/\s+/);
   const amountPart = amountParts[0];
-  const amount = parseInt(amountPart);
+  const parsedAmount = parseInt(amountPart, 10);
+  const amount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : null;
 
-  if (isNaN(amount) || amount <= 0) {
+  // Extract message (everything after amount)
+  const message = amountParts.slice(1).join(' ') || null;
+
+  let recipient: string | null = null;
+  let recipientHandle: string | null = null;
+  let error: string | null = null;
+
+  if (recipientToken.startsWith('<@') && recipientToken.endsWith('>')) {
+    recipient = parseSlackMention(recipientToken);
+    if (!recipient) {
+      error = 'Invalid recipient. Use @mention or Slack user ID.\nExample: `/send-karma @john 10 Great job!`';
+    }
+  } else if (validateSlackUserId(recipientToken)) {
+    recipient = recipientToken;
+  } else if (recipientToken.startsWith('@')) {
+    recipientHandle = recipientToken.slice(1).trim();
+    if (!recipientHandle) {
+      error = 'Invalid recipient. Use @mention or Slack user ID.\nExample: `/send-karma @john 10 Great job!`';
+    }
+  } else {
+    error = 'Invalid recipient. Use @mention or Slack user ID.\nExample: `/send-karma @john 10 Great job!`';
+  }
+
+  if (!amount) {
     return {
       recipient,
+      recipientHandle,
+      rawRecipient: recipientToken,
       amount: null,
       message: null,
       error: 'Amount must be a positive number.\nExample: `/send-karma @john 10 Great job!`'
     };
   }
 
-  // Extract message (everything after amount)
-  const message = amountParts.slice(1).join(' ') || null;
-
   return {
     recipient,
+    recipientHandle,
+    rawRecipient: recipientToken,
     amount,
     message,
-    error: null
+    error
   };
+}
+
+interface SlackMemberProfile {
+  display_name?: string;
+  display_name_normalized?: string;
+  real_name?: string;
+  real_name_normalized?: string;
+}
+
+interface SlackMember {
+  id?: string;
+  team_id?: string;
+  deleted?: boolean;
+  name?: string;
+  profile?: SlackMemberProfile;
+}
+
+async function lookupSlackUserIdByHandle(
+  handle: string,
+  teamId: string,
+  accessToken: string
+): Promise<string | null> {
+  const normalized = handle.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  let cursor: string | undefined;
+
+  try {
+    do {
+      const url = new URL('https://slack.com/api/users.list');
+      url.searchParams.set('limit', '200');
+      if (cursor) {
+        url.searchParams.set('cursor', cursor);
+      }
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        console.error('Slack users.list error:', data.error);
+        return null;
+      }
+
+      const members: SlackMember[] = Array.isArray(data.members) ? data.members : [];
+      const match = members.find((member) => {
+        if (!member || member.deleted) return false;
+        if (member.team_id && member.team_id !== teamId) return false;
+
+        const candidates = [
+          member.name,
+          member.profile?.display_name,
+          member.profile?.display_name_normalized,
+          member.profile?.real_name,
+          member.profile?.real_name_normalized,
+        ]
+          .filter((value): value is string => typeof value === 'string')
+          .map((value) => value.toLowerCase());
+
+        return candidates.includes(normalized);
+      });
+
+      if (match?.id && typeof match.id === 'string') {
+        return match.id;
+      }
+
+      const nextCursor = data.response_metadata?.next_cursor?.trim();
+      cursor = nextCursor ? nextCursor : undefined;
+    } while (cursor);
+  } catch (error) {
+    console.error('Error looking up Slack user by handle:', error);
+    return null;
+  }
+
+  return null;
+}
+
+async function resolveSlackHandleToUserId(
+  handle: string,
+  teamId: string,
+  senderProfileId: string
+): Promise<string | null> {
+  try {
+    const identities = await getSlackIdentity(senderProfileId, teamId);
+    if (!identities || identities.length === 0) {
+      return null;
+    }
+
+    for (const identity of identities) {
+      const tokens = await getDecryptedSlackTokens(identity);
+      const userId = await lookupSlackUserIdByHandle(handle, teamId, tokens.access_token);
+      if (userId) {
+        return userId;
+      }
+    }
+  } catch (error) {
+    console.error('Error resolving Slack handle to user ID:', error);
+  }
+
+  return null;
 }
 
 // Handle /send-karma command
@@ -216,10 +342,34 @@ export async function handleSendKarmaCommand(
       };
     }
 
+    let recipientSlackId = parsed.recipient;
+
+    if (!recipientSlackId && parsed.recipientHandle) {
+      recipientSlackId = await resolveSlackHandleToUserId(
+        parsed.recipientHandle,
+        payload.team_id,
+        senderProfile.id
+      );
+
+      if (!recipientSlackId) {
+        return {
+          response_type: 'ephemeral',
+          text: `❌ Couldn't find Slack user @${parsed.recipientHandle}. Try selecting them from Slack's mention picker or paste their Slack user ID.`,
+        };
+      }
+    }
+
+    if (!recipientSlackId) {
+      return {
+        response_type: 'ephemeral',
+        text: '❌ Invalid recipient. Use Slack @mentions or a Slack user ID.',
+      };
+    }
+
     // Resolve recipient
-    const recipientProfile = await getProfileBySlackUser(parsed.recipient!, payload.team_id);
+    const recipientProfile = await getProfileBySlackUser(recipientSlackId, payload.team_id);
     if (!recipientProfile) {
-      const recipientMention = `<@${parsed.recipient}>`;
+      const recipientMention = `<@${recipientSlackId}>`;
       return {
         response_type: 'ephemeral',
         text: `❌ ${recipientMention} hasn't connected their karma account yet. They need to sign in to the platform and link their Slack account.`,
@@ -244,7 +394,7 @@ export async function handleSendKarmaCommand(
       });
 
       // Success response
-      const recipientMention = `<@${parsed.recipient}>`;
+      const recipientMention = `<@${recipientSlackId}>`;
       const currencyName = workspace.currency_name.toLowerCase();
       const messageText = parsed.message ? ` with message: "${parsed.message}"` : '';
       
