@@ -1,0 +1,10 @@
+Slack OAuth token exchange successful: {
+  team_id: 'T09HREUM7J6',
+  user_id: 'U09HREUMHU2',
+  scope: 'users:read,users:read.email,chat:write,commands,team:read'
+}
+Slack identity saved successfully for profile: da2866d4-9054-4ca7-89be-723fce5a4d33
+Workspace linked to Slack team: {
+  workspace_id: 'd8f93024-5b16-4e3a-be2c-6f3070abdb30',
+  slack_team_id: 'T09HREUM7J6'
+}

@@ -1,0 +1,6 @@
+2025-10-02T07:24:28.192Z [info] Slack OAuth token exchange successful: {
+  team_id: 'T09HREUM7J6',
+  user_id: 'U09HREUMHU2',
+  scope: 'users:read,users:read.email,chat:write,commands,team:read'
+}
+2025-10-02T07:24:28.270Z [info] Slack identity saved successfully for profile: 820274e5-5f0b-41c9-8e41-b69c613409b2

@@ -99,13 +99,22 @@ export async function getSlackIdentity(
   profileId: string,
   teamId?: string
 ): Promise<SlackIdentity[]> {
-  const { data, error } = await supabaseServer.rpc('get_slack_identity_by_profile', {
-    p_profile_id: profileId,
-    p_team_id: teamId,
-  });
+  let query = supabaseServer
+    .from('slack_identities')
+    .select('*')
+    .eq('profile_id', profileId);
 
-  if (error) handleDatabaseError(error);
-  return data;
+  if (teamId) {
+    query = query.eq('slack_team_id', teamId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    handleDatabaseError(error);
+  }
+
+  return data || [];
 }
 
 export async function getDecryptedSlackTokens(
