@@ -162,7 +162,27 @@ export async function getProfileBySlackUser(
     return null;
   }
 
-  return data && data.length > 0 ? data[0] as Profile : null;
+  if (!data || data.length === 0) {
+    return null;
+  }
+
+  const profileId = data[0].id;
+  if (!profileId) {
+    return null;
+  }
+
+  const { data: profileRecord, error: profileError } = await supabaseServer
+    .from('profiles')
+    .select('*')
+    .eq('id', profileId)
+    .single();
+
+  if (profileError) {
+    console.error('Error loading profile record for slack user:', profileError);
+    return null;
+  }
+
+  return profileRecord as Profile;
 }
 
 export async function resolveSlackMention(

@@ -1,0 +1,17 @@
+Database error: {
+  code: 'PGRST202',
+  details: 'Searched for the function public.validate_and_create_transaction with parameters p_amount, p_message, p_receiver_profile_id, p_sender_profile_id or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.',
+  hint: 'Perhaps you meant to call the function public.validate_and_create_transaction(p_amount, p_message, p_receiver_profile_id)',
+  message: 'Could not find the function public.validate_and_create_transaction(p_amount, p_message, p_receiver_profile_id, p_sender_profile_id) in the schema cache'
+}
+Transaction failed: Error [DatabaseError]: Could not find the function public.validate_and_create_transaction(p_amount, p_message, p_receiver_profile_id, p_sender_profile_id) in the schema cache
+    at f (.next/server/chunks/5916.js:1:3187)
+    at t (.next/server/chunks/5916.js:6:743)
+    at async A (.next/server/app/api/slack/commands/route.js:1:4533)
+    at async D (.next/server/app/api/slack/commands/route.js:2:1932)
+    at async k (.next/server/app/api/slack/commands/route.js:2:4900)
+    at async g (.next/server/app/api/slack/commands/route.js:2:5903) {
+  code: 'DATABASE_ERROR',
+  status: 500,
+  details: [Object]
+}
