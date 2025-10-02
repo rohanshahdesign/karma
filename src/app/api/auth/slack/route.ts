@@ -37,6 +37,10 @@ export async function POST(request: NextRequest) {
 
     // Authenticate the user using the bearer token
     const user = await getAuthenticatedUserForJoin(request);
+    const authHeader = request.headers.get('authorization');
+    const accessToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length)
+      : null;
 
     let body: SlackInitiatePayload = {};
     try {
@@ -63,6 +67,13 @@ export async function POST(request: NextRequest) {
 
     if (redirectTo) {
       cookieStore.set('slack_oauth_redirect_to', redirectTo, cookieOptions);
+    }
+
+    if (accessToken) {
+      cookieStore.set('slack_oauth_token', accessToken, {
+        ...cookieOptions,
+        maxAge: 300,
+      });
     }
 
     const scopes = [

@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 import { saveSlackIdentity, linkWorkspaceToSlackTeam, SlackOAuthTokens } from '../../../../../lib/slack';
 import { getProfileByAuthUserId } from '../../../../../lib/database';
 
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
     const cookieStore = await cookies();
     const storedState = cookieStore.get('slack_oauth_state')?.value;
     const redirectTo = cookieStore.get('slack_oauth_redirect_to')?.value || '/home';
+    const oauthAccessToken = cookieStore.get('slack_oauth_token')?.value || null;
 
     if (!storedState || storedState !== state) {
       console.error('Invalid OAuth state parameter');
@@ -46,6 +48,7 @@ export async function GET(request: NextRequest) {
     cookieStore.delete('slack_oauth_state');
     cookieStore.delete('slack_oauth_redirect_to');
     cookieStore.delete('slack_oauth_user');
+    cookieStore.delete('slack_oauth_token');
 
     if (!authUserId) {
       console.error('No user context found for Slack linking');
@@ -80,12 +83,54 @@ export async function GET(request: NextRequest) {
       // If this is the first admin connecting from this Slack team,
       // we can link the workspace to the Slack team
       if (profile.role === 'admin' || profile.role === 'super_admin') {
-        const linked = await linkWorkspaceToSlackTeam(profile.workspace_id, tokenResponse.team_id);
+        let linked = false;
+
+        if (oauthAccessToken) {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+          if (supabaseUrl && supabaseAnonKey) {
+            try {
+              const supabaseUserClient = createClient(supabaseUrl, supabaseAnonKey, {
+                global: {
+                  headers: {
+                    Authorization: `Bearer ${oauthAccessToken}`,
+                  },
+                },
+              });
+
+              const { data, error } = await supabaseUserClient.rpc('link_workspace_to_slack_team', {
+                p_workspace_id: profile.workspace_id,
+                p_team_id: tokenResponse.team_id,
+              });
+
+              if (error) {
+                console.error('User-context workspace linking failed:', error);
+              } else {
+                linked = Boolean(data);
+              }
+            } catch (clientError) {
+              console.error('Error creating user-context Supabase client:', clientError);
+            }
+          } else {
+            console.warn('Supabase URL or anon key missing; cannot link workspace with user context');
+          }
+        } else {
+          console.warn('Slack OAuth access token cookie missing; falling back to service client for linking');
+        }
+
+        if (!linked) {
+          const fallbackLinked = await linkWorkspaceToSlackTeam(profile.workspace_id, tokenResponse.team_id);
+          linked = fallbackLinked;
+        }
+
         if (linked) {
           console.log('Workspace linked to Slack team:', {
             workspace_id: profile.workspace_id,
             slack_team_id: tokenResponse.team_id,
           });
+        } else {
+          console.warn('Workspace linking did not succeed for workspace:', profile.workspace_id);
         }
       }
 
