@@ -55,6 +55,7 @@ import {
   type RewardWithTags
 } from '@/lib/database/rewards-client';
 import type { Database } from '@/lib/database.types';
+import { DepartmentManager } from '@/components/ui/department-manager';
 
 type RewardRedemption = Database['public']['Tables']['reward_redemptions']['Row'];
 
@@ -77,6 +78,7 @@ export default function WorkspacesPage() {
     max_transaction_amount?: number;
     daily_limit_percentage?: number;
     currency_name?: string;
+    departments?: string[];
   }>({});
   const [selectedRewardTags, setSelectedRewardTags] = useState<string[]>([]);
   const [rewards, setRewards] = useState<RewardWithTags[]>([]);
@@ -293,19 +295,29 @@ export default function WorkspacesPage() {
     }
   };
 
-  const handleEditSettings = (workspace: WorkspaceWithMembers) => {
+  const handleEditSettings = async (workspace: WorkspaceWithMembers) => {
+    // Fetch current departments from workspace_settings
+    const { data: settings } = await supabase
+      .from('workspace_settings')
+      .select('departments')
+      .eq('workspace_id', workspace.id)
+      .single();
+    
+    const departments = settings?.departments || ['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR'];
+    
     setSettingsData({
       min_transaction_amount: workspace.min_transaction_amount,
       max_transaction_amount: workspace.max_transaction_amount,
       daily_limit_percentage: workspace.daily_limit_percentage,
       currency_name: workspace.currency_name,
+      departments: Array.isArray(departments) ? departments : ['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR'],
     });
     setEditingSettings(true);
   };
 
   const handleSaveSettings = async (workspaceId: string) => {
     try {
-      // Update workspace settings
+      // Update workspace settings including departments
       const { error: settingsError } = await supabase
         .from('workspace_settings')
         .upsert({
@@ -314,6 +326,7 @@ export default function WorkspacesPage() {
           max_transaction_amount: settingsData.max_transaction_amount,
           daily_limit_percentage: settingsData.daily_limit_percentage,
           currency_name: settingsData.currency_name,
+          departments: settingsData.departments || ['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR'],
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'workspace_id',
@@ -1407,6 +1420,22 @@ export default function WorkspacesPage() {
                     max="100"
                   />
                 </div>
+              </div>
+              
+              {/* Department Management */}
+              <div className="border-t pt-4">
+                <Label className="text-base font-semibold mb-2 block">Departments</Label>
+                <p className="text-sm text-gray-600 mb-3">
+                  Manage departments for your workspace. Team members will select from these when joining or updating their profile.
+                </p>
+                <DepartmentManager
+                  departments={settingsData.departments || ['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR']}
+                  onChange={(newDepartments) => setSettingsData({
+                    ...settingsData,
+                    departments: newDepartments
+                  })}
+                  disabled={false}
+                />
               </div>
             </div>
 

@@ -10,6 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { UsernameInput } from '@/components/ui/username-input';
+import { DepartmentManager } from '@/components/ui/department-manager';
+
+const DEFAULT_DEPARTMENTS = ['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR'];
 
 interface WorkspaceSettings {
   name: string;
@@ -45,6 +48,7 @@ export default function WorkspaceSettingsForm() {
     bio: '',
     portfolio_url: ''
   });
+  const [departments, setDepartments] = useState<string[]>(DEFAULT_DEPARTMENTS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,7 +146,8 @@ export default function WorkspaceSettingsForm() {
           p_username: profile.username.trim(),
           p_job_title: profile.job_title.trim() || null,
           p_bio: profile.bio.trim() || null,
-          p_portfolio_url: profile.portfolio_url.trim() || null
+          p_portfolio_url: profile.portfolio_url.trim() || null,
+          p_departments: departments
         }
       );
       
@@ -198,6 +203,21 @@ export default function WorkspaceSettingsForm() {
                   What should your recognition currency be called?
                 </p>
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Department Configuration */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Department Configuration</h3>
+              <p className="text-sm text-gray-600">
+                Configure departments for your workspace. Team members will select one when joining.
+              </p>
+              <DepartmentManager
+                departments={departments}
+                onChange={setDepartments}
+                disabled={loading}
+              />
             </div>
 
             <Separator />

@@ -120,7 +120,18 @@ export default function SendKarmaPage() {
         .order('full_name');
 
       if (membersError) throw membersError;
-      setMembers(membersData || []);
+      
+      // Filter members based on current user's role
+      let filteredMembers = membersData || [];
+      if (profile.role === 'employee') {
+        // Employees can only send to members from different departments
+        filteredMembers = filteredMembers.filter(
+          member => member.department !== profile.department
+        );
+      }
+      // Admins and super_admins have no restrictions
+      
+      setMembers(filteredMembers);
     } catch (err) {
       console.error('Failed to load data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -356,6 +367,15 @@ export default function SendKarmaPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {currentProfile.role === 'employee' && (
+                <div className="flex items-start gap-2 mt-2 text-sm text-muted-foreground">
+                  <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <p>
+                    You can send {currencyName} to teammates in other departments. 
+                    {currentProfile.department && ` You're in ${currentProfile.department}.`}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Amount */}

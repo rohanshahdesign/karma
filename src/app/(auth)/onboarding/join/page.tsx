@@ -11,11 +11,19 @@ import { ProfilePictureUpload } from '@/components/ui/profile-picture-upload';
 import { UsernameInput } from '@/components/ui/username-input';
 import supabase from '../../../../lib/supabase';
 import { toast } from 'sonner';
-import { Briefcase, Link2, FileText, Users } from 'lucide-react';
+import { Briefcase, Link2, FileText, Users, Building2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface ProfileFormData {
   username: string;
   jobTitle: string;
+  department: string;
   bio: string;
   portfolioUrl: string;
   profileImageUrl: string | null;
@@ -32,9 +40,12 @@ function JoinWorkspaceForm() {
   const [loading, setLoading] = useState(false);
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null);
+  const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
+  const [_workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<ProfileFormData>({
     username: '',
     jobTitle: '',
+    department: '',
     bio: '',
     portfolioUrl: '',
     profileImageUrl: null,
@@ -93,6 +104,29 @@ function JoinWorkspaceForm() {
       throw new Error(message);
     }
 
+    // Extract workspace_id from result
+    const wsId = result?.data?.workspace_id;
+    if (wsId) {
+      setWorkspaceId(wsId);
+      
+      // Fetch available departments for this workspace
+      try {
+        const deptResponse = await fetch(`/api/workspaces/departments?workspace_id=${wsId}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
+        const deptResult = await deptResponse.json();
+        if (deptResult.success && deptResult.data?.departments) {
+          setAvailableDepartments(deptResult.data.departments);
+        }
+      } catch (err) {
+        console.error('Failed to fetch departments:', err);
+        // Use default departments if fetch fails
+        setAvailableDepartments(['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR']);
+      }
+    }
+
     // Set current user and show profile form
     setCurrentUser(user);
     
@@ -128,6 +162,7 @@ function JoinWorkspaceForm() {
         profile: {
           username: profileData.username.trim(),
           job_title: profileData.jobTitle.trim() || null,
+          department: profileData.department,
           bio: profileData.bio.trim() || null,
           portfolio_url: profileData.portfolioUrl.trim() || null,
           profile_picture_url: profileData.profileImageUrl,
@@ -198,6 +233,11 @@ function JoinWorkspaceForm() {
     // Validate required fields
     if (!profileData.username.trim()) {
       setError('Username is required');
+      return;
+    }
+    
+    if (!profileData.department) {
+      setError('Department is required');
       return;
     }
     
@@ -274,6 +314,30 @@ function JoinWorkspaceForm() {
                         disabled={loading}
                         className="mt-1"
                       />
+                    </div>
+
+                    {/* Department - Required */}
+                    <div>
+                      <Label htmlFor="department" className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        Department *
+                      </Label>
+                      <Select
+                        value={profileData.department}
+                        onValueChange={(value) => handleProfileDataChange('department', value)}
+                        disabled={loading}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select your department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableDepartments.map((dept) => (
+                            <SelectItem key={dept} value={dept}>
+                              {dept}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 

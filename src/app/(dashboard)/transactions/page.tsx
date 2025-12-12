@@ -204,7 +204,10 @@ export default function TransactionsPage() {
   const getTransactionBadge = (transaction: TransactionWithProfiles) => {
     const isSent = transaction.sender_profile_id === currentProfile?.id;
     return (
-      <Badge variant={isSent ? "destructive" : "default"} className="text-xs">
+      <Badge 
+        variant={isSent ? "destructive" : "default"} 
+        className={`text-xs ${isSent ? 'bg-red-100 text-red-800 hover:bg-red-100' : ''}`}
+      >
         {isSent ? 'Sent' : 'Received'}
       </Badge>
     );
