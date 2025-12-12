@@ -12,6 +12,7 @@ interface EnhancedJoinWorkspaceInput {
   profile: {
     username?: string;
     job_title?: string;
+    department?: string;
     bio?: string;
     portfolio_url?: string;
     profile_picture_url?: string;
@@ -78,6 +79,7 @@ export const POST = withErrorHandling(
           p_job_title: body.profile.job_title?.trim() || null,
           p_bio: body.profile.bio?.trim() || null,
           p_portfolio_url: body.profile.portfolio_url?.trim() || null,
+          p_department: body.profile.department || null,
         }
       );
       

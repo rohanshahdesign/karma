@@ -47,6 +47,7 @@ export function EditProfileDialog({
   onProfileUpdated,
 }: EditProfileDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [workspaceDepartments, setWorkspaceDepartments] = useState<string[]>([]);
   const [formData, setFormData] = useState<ProfileFormData>({
     full_name: '',
     job_title: '',
@@ -54,6 +55,42 @@ export function EditProfileDialog({
     bio: '',
     avatar_url: null,
   });
+
+  // Fetch workspace departments
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      if (!open || !profile.workspace_id) return;
+      
+      try {
+        // Get the current session to include auth token
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.error('No session found');
+          setWorkspaceDepartments(['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR']);
+          return;
+        }
+
+        const response = await fetch(`/api/workspaces/departments?workspace_id=${profile.workspace_id}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
+        const data = await response.json();
+        if (data.success && data.data?.departments) {
+          setWorkspaceDepartments(data.data.departments);
+        } else {
+          // Fallback to default departments
+          setWorkspaceDepartments(['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR']);
+        }
+      } catch (error) {
+        console.error('Failed to fetch departments:', error);
+        // Fallback to default departments
+        setWorkspaceDepartments(['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR']);
+      }
+    };
+    
+    fetchDepartments();
+  }, [open, profile.workspace_id]);
 
   // Initialize form data when profile changes or dialog opens
   useEffect(() => {
@@ -85,6 +122,13 @@ export function EditProfileDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!formData.department) {
+      toast.error('Department is required');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -185,7 +229,9 @@ export function EditProfileDialog({
 
           {/* Department */}
           <div className="space-y-2">
-            <Label htmlFor="department">Department</Label>
+            <Label htmlFor="department">
+              Department <span className="text-red-500">*</span>
+            </Label>
             <Select
               value={formData.department}
               onValueChange={(value) => handleInputChange('department', value)}
@@ -195,17 +241,11 @@ export function EditProfileDialog({
                 <SelectValue placeholder="Select department" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Engineering">Engineering</SelectItem>
-                <SelectItem value="Product">Product</SelectItem>
-                <SelectItem value="Design">Design</SelectItem>
-                <SelectItem value="Marketing">Marketing</SelectItem>
-                <SelectItem value="Sales">Sales</SelectItem>
-                <SelectItem value="Customer Success">Customer Success</SelectItem>
-                <SelectItem value="Operations">Operations</SelectItem>
-                <SelectItem value="Finance">Finance</SelectItem>
-                <SelectItem value="HR">HR</SelectItem>
-                <SelectItem value="Legal">Legal</SelectItem>
-                <SelectItem value="Other">Other</SelectItem>
+                {workspaceDepartments.map((dept) => (
+                  <SelectItem key={dept} value={dept}>
+                    {dept}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

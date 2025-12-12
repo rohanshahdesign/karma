@@ -55,6 +55,7 @@ import {
   type RewardWithTags
 } from '@/lib/database/rewards-client';
 import type { Database } from '@/lib/database.types';
+import { DepartmentManager } from '@/components/ui/department-manager';
 
 type RewardRedemption = Database['public']['Tables']['reward_redemptions']['Row'];
 
@@ -77,6 +78,7 @@ export default function WorkspacesPage() {
     max_transaction_amount?: number;
     daily_limit_percentage?: number;
     currency_name?: string;
+    departments?: string[];
   }>({});
   const [selectedRewardTags, setSelectedRewardTags] = useState<string[]>([]);
   const [rewards, setRewards] = useState<RewardWithTags[]>([]);
