@@ -28,7 +28,7 @@ export function HeroSection() {
                 size="lg"
                 className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 px-6 sm:px-8"
               >
-                Get started — it's free
+              Get started — it&apos;s free
               </Button>
               <Button size="lg" variant="outline" className="w-full sm:w-auto group bg-transparent">
                 Explore features
@@ -64,7 +64,7 @@ export function HeroSection() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs sm:text-sm font-medium text-foreground">
-                      <span className="text-accent">@alex</span> redeemed "Coffee Day"
+                      <span className="text-accent">@alex</span> redeemed &quot;Coffee Day&quot;
                     </p>
                     <p className="text-xs text-muted-foreground">50 karma • Approved</p>
                   </div>

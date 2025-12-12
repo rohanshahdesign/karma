@@ -181,7 +181,7 @@ export function DepartmentManager({
                       variant="ghost"
                       onClick={(e) => {
                         e.stopPropagation();
-                        !disabled && handleRemoveDepartment(index);
+                        if (!disabled) handleRemoveDepartment(index);
                       }}
                       disabled={disabled}
                       className="h-4 w-4 p-0 hover:bg-red-200 rounded-full ml-1"

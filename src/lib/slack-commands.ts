@@ -382,6 +382,17 @@ export async function handleSendKarmaCommand(
       };
     }
 
+    // Check department restrictions for employees
+    if (senderProfile.role === 'employee') {
+      if (senderProfile.department === recipientProfile.department) {
+        const departmentText = senderProfile.department ? ` (${senderProfile.department})` : '';
+        return {
+          response_type: 'ephemeral',
+          text: `❌ You can't send ${workspace.currency_name.toLowerCase()} to someone in your own department${departmentText}. Try recognizing a teammate from a different department!`,
+        };
+      }
+    }
+
     // Create the transaction
     try {
       const transactionId = await validateAndCreateTransaction({

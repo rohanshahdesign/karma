@@ -41,7 +41,7 @@ function JoinWorkspaceForm() {
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null);
   const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [_workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<ProfileFormData>({
     username: '',
     jobTitle: '',

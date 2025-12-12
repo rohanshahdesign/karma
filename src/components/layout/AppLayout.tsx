@@ -228,7 +228,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   <X className="h-6 w-6 text-white" />
                 </button>
               </div>
-              <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
+              <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
                 <div className="flex-shrink-0 flex items-center px-4">
                   <div className="flex items-center">
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
@@ -241,7 +241,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     </span>
                   </div>
                 </div>
-                <nav className="mt-5 px-2 space-y-1">
+                <nav className="mt-5 flex-1 px-2 space-y-1">
                   {navItems.map((item) => {
                     const Icon = item.icon;
                     const active = isActive(item.href);
@@ -272,6 +272,32 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   })}
                 </nav>
               </div>
+              {currentProfile && (
+                <div className="flex-shrink-0 border-t border-gray-200 p-4">
+                  <Link 
+                    href="/profile"
+                    className="flex items-center mb-3 p-2 rounded-md hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <UserAvatar user={currentProfile} size="md" clickable={false} />
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-gray-700">
+                        {getUserDisplayName(currentProfile)}
+                      </p>
+                      <p className="text-xs font-medium text-gray-500 capitalize">
+                        {currentProfile.role.replace('_', ' ')}
+                      </p>
+                    </div>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -307,26 +333,28 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </main>
 
         {/* Mobile bottom navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-          <div className="flex">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex-1 flex flex-col items-center py-2 px-1 ${
-                    active ? 'text-accent' : 'text-gray-600'
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-xs mt-1">{item.label}</span>
-                </Link>
-              );
-            })}
+        {!sidebarOpen && (
+          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+            <div className="flex">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex-1 flex flex-col items-center py-2 px-1 ${
+                      active ? 'text-accent' : 'text-gray-600'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="text-xs mt-1">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
