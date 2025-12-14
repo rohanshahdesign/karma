@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { 
   getProfileBalance, 
@@ -74,7 +73,6 @@ const PREDEFINED_REASONS = [
 ];
 
 export default function SendKarmaPage() {
-  const router = useRouter();
   const { currencyName } = useCurrency();
   const { profile: currentProfile, isLoading: isProfileLoading } = useUser();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);

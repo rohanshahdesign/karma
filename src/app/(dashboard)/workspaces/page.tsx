@@ -612,7 +612,7 @@ export default function WorkspacesPage() {
                 <DialogTitle>Create New Workspace</DialogTitle>
                 <DialogDescription>
                   Set up a new workspace for your team to collaborate and
-                  recognize each other's contributions.
+                  recognize each other`&apos;`s contributions.
                 </DialogDescription>
               </DialogHeader>
 

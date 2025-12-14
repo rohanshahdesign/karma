@@ -29,9 +29,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       
       // Check auth session first
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session: authSession } } = await supabase.auth.getSession();
       
-      if (!session) {
+      if (!authSession) {
         setProfile(null);
         setIsAuthenticated(false);
         setIsLoading(false);
@@ -53,7 +53,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     loadProfile();
 
     // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
         setIsAuthenticated(true);
         loadProfile();

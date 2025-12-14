@@ -140,10 +140,10 @@ export default function DashboardHomePage() {
       {/* Welcome Header */}
       <div className="space-y-2">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-          Welcome back, {currentProfile.full_name?.split(' ')[0] || 'there'}!
+          Welcome back, {currentProfile.full_name?.split(' ')[0] || "there"}!
         </h1>
         <p className="text-gray-600">
-          Here's your {currencyName} activity summary
+          Here`&apos;`s your {currencyName} activity summary
         </p>
       </div>
 
@@ -271,7 +271,7 @@ export default function DashboardHomePage() {
                       </p>
                       {transaction.message && (
                         <p className="text-sm text-muted-foreground">
-                          "{transaction.message}"
+                          &quot;{transaction.message}&quot;
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground">

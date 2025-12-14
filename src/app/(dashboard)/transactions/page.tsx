@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserAvatar, getUserDisplayName } from '@/components/ui/user-avatar';
 import { 
   History,
@@ -257,13 +257,6 @@ export default function TransactionsPage() {
         {isSent ? 'Sent' : 'Received'}
       </Badge>
     );
-  };
-
-  const getOtherUser = (transaction: TransactionWithProfiles) => {
-    // In "everyone" view, we might need both sender and receiver depending on context
-    // But for the avatar display logic in "You" view:
-    const isSent = transaction.sender_profile_id === currentProfile?.id;
-    return isSent ? transaction.receiver_profile : transaction.sender_profile;
   };
 
   const formatDate = (dateString: string) => {

@@ -41,7 +41,6 @@ function JoinWorkspaceForm() {
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null);
   const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
-  const [_workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<ProfileFormData>({
     username: '',
     jobTitle: '',
@@ -107,7 +106,7 @@ function JoinWorkspaceForm() {
     // Extract workspace_id from result
     const wsId = result?.data?.workspace_id;
     if (wsId) {
-      setWorkspaceId(wsId);
+      // setWorkspaceId(wsId);
       
       // Fetch available departments for this workspace
       try {

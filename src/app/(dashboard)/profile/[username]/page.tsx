@@ -573,10 +573,10 @@ export default function UserProfilePage() {
       {/* All Badges Modal */}
       <Dialog open={showAllBadges} onOpenChange={setShowAllBadges}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Award className="h-5 w-5 text-yellow-600" />
-              {getUserDisplayName(viewedProfile)}'s Achievements
+              {getUserDisplayName(viewedProfile)}&apos;s Achievements
             </DialogTitle>
           </DialogHeader>
           <div className="mt-4">
