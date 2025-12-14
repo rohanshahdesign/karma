@@ -144,115 +144,89 @@ export async function wouldExceedDailyLimit(
 
 export interface TransactionValidation {
   valid: boolean;
-  errors: string[];
+  error: string | null;
   warnings: string[];
 }
 
 /**
- * Validate a transaction before execution
+ * Validate a transaction before execution using cached data
+ * Implements hierarchical validation - stops at first error
  */
 export async function validateTransaction(
-  senderProfileId: string,
+  senderProfile: { id: string; giving_balance: number; workspace_id: string },
   receiverProfileId: string,
-  amount: number
+  amount: number,
+  workspaceSettings: { min_transaction_amount: number; max_transaction_amount: number; currency_name: string; daily_limit_percentage: number; monthly_allowance: number },
+  dailyLimitInfo: DailyLimitInfo
 ): Promise<TransactionValidation> {
   const validation: TransactionValidation = {
     valid: true,
-    errors: [],
+    error: null,
     warnings: [],
   };
 
   try {
     // Check if sender and receiver are different
-    if (senderProfileId === receiverProfileId) {
+    if (senderProfile.id === receiverProfileId) {
       validation.valid = false;
-      validation.errors.push('Cannot send karma to yourself');
+      validation.error = 'Cannot send karma to yourself';
       return validation;
     }
 
-    // Get sender profile with workspace settings
-    const { data: senderProfile, error: senderError } = await supabase
-      .from('profiles')
-      .select(`
-        *,
-        workspace:workspaces (*)
-      `)
-      .eq('id', senderProfileId)
-      .single();
-
-    if (senderError) {
-      validation.valid = false;
-      validation.errors.push('Sender profile not found');
-      return validation;
-    }
-
-    // Get receiver profile
+    // Get receiver profile (minimal data needed)
     const { data: receiverProfile, error: receiverError } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, active, workspace_id')
       .eq('id', receiverProfileId)
       .single();
 
     if (receiverError) {
       validation.valid = false;
-      validation.errors.push('Receiver profile not found');
+      validation.error = 'Receiver profile not found';
       return validation;
     }
 
     // Check if both profiles are in the same workspace
     if (senderProfile.workspace_id !== receiverProfile.workspace_id) {
       validation.valid = false;
-      validation.errors.push('Cannot send karma to users in different workspaces');
+      validation.error = 'Cannot send karma to users in different workspaces';
       return validation;
     }
 
-    // Get workspace settings
-    const { data: workspaceSettings, error: settingsError } = await supabase
-      .from('workspace_settings')
-      .select('min_transaction_amount, max_transaction_amount, currency_name')
-      .eq('workspace_id', senderProfile.workspace_id)
-      .single();
-
-    let workspace: { min_transaction_amount: number; max_transaction_amount: number; currency_name: string };
+    // HIERARCHICAL VALIDATION - Stop at first error
     
-    if (settingsError) {
-      // Fallback to default settings if workspace_settings doesn't exist
-      const workspaceData = (Array.isArray(senderProfile.workspace) ? senderProfile.workspace[0] : senderProfile.workspace) as { currency_name: string };
-      workspace = {
-        min_transaction_amount: 1,
-        max_transaction_amount: 50,
-        currency_name: workspaceData.currency_name || 'Karma'
-      };
-    } else {
-      workspace = workspaceSettings;
-    }
-
-    // Check amount limits
-    if (amount < workspace.min_transaction_amount) {
+    // Check 1: Minimum amount
+    if (amount < workspaceSettings.min_transaction_amount) {
       validation.valid = false;
-      validation.errors.push(`Amount too low. Minimum: ${workspace.min_transaction_amount} ${workspace.currency_name}`);
+      validation.error = `Amount too low. Minimum: ${workspaceSettings.min_transaction_amount} ${workspaceSettings.currency_name}`;
+      return validation;
     }
 
-    if (amount > workspace.max_transaction_amount) {
+    // Check 2: Maximum amount
+    if (amount > workspaceSettings.max_transaction_amount) {
       validation.valid = false;
-      validation.errors.push(`Amount too high. Maximum: ${workspace.max_transaction_amount} ${workspace.currency_name}`);
+      validation.error = `Amount too high. Maximum: ${workspaceSettings.max_transaction_amount} ${workspaceSettings.currency_name}`;
+      return validation;
     }
 
-    // Check giving balance
+    // Check 3: Giving balance
     if (senderProfile.giving_balance < amount) {
       validation.valid = false;
-      validation.errors.push(`Insufficient giving balance. You have ${senderProfile.giving_balance} ${workspace.currency_name}`);
+      validation.error = `Insufficient giving balance. You have ${senderProfile.giving_balance} ${workspaceSettings.currency_name}`;
+      return validation;
     }
 
-    // Check daily limit
-    const limitInfo = await getDailyLimitInfo(senderProfileId);
-    if (amount > limitInfo.remaining_limit) {
+    // Check 4: Daily limit
+    if (amount > dailyLimitInfo.remaining_limit) {
       validation.valid = false;
-      validation.errors.push(`Daily limit exceeded. Remaining today: ${limitInfo.remaining_limit} ${workspace.currency_name}`);
+      validation.error = `Daily limit exceeded. Remaining today: ${dailyLimitInfo.remaining_limit} ${workspaceSettings.currency_name}`;
+      return validation;
     }
 
-    // Warnings for high percentage usage
-    const newPercentage = limitInfo.daily_limit > 0 ? ((limitInfo.amount_sent_today + amount) / limitInfo.daily_limit) * 100 : 0;
+    // If valid, add warnings
+    const newPercentage = dailyLimitInfo.daily_limit > 0 
+      ? ((dailyLimitInfo.amount_sent_today + amount) / dailyLimitInfo.daily_limit) * 100 
+      : 0;
     if (newPercentage >= 80 && newPercentage < 100) {
       validation.warnings.push(`This transaction will use ${Math.round(newPercentage)}% of your daily limit`);
     }
@@ -262,12 +236,179 @@ export async function validateTransaction(
       validation.warnings.push('The receiver is currently inactive');
     }
 
-  } catch {
+  } catch (err) {
     validation.valid = false;
-    validation.errors.push('Validation failed due to system error');
+    validation.error = 'Validation failed due to system error';
   }
 
   return validation;
+}
+
+/**
+ * Optimized validation using cached context data - Recommended approach
+ * Only fetches receiver profile (1 request) and daily limit if needed
+ */
+export async function validateTransactionOptimized(
+  senderProfile: { id: string; giving_balance: number; workspace_id: string },
+  receiverProfileId: string,
+  amount: number,
+  workspaceSettings: { min_transaction_amount: number; max_transaction_amount: number; currency_name: string; daily_limit_percentage: number; monthly_allowance: number },
+  dailyLimitInfo: DailyLimitInfo
+): Promise<TransactionValidation> {
+  const validation: TransactionValidation = {
+    valid: true,
+    error: null,
+    warnings: [],
+  };
+
+  try {
+    // Check if sender and receiver are different
+    if (senderProfile.id === receiverProfileId) {
+      validation.valid = false;
+      validation.error = 'Cannot send karma to yourself';
+      return validation;
+    }
+
+    // Get receiver profile (minimal data needed) - 1 REQUEST
+    const { data: receiverProfile, error: receiverError } = await supabase
+      .from('profiles')
+      .select('id, active, workspace_id')
+      .eq('id', receiverProfileId)
+      .single();
+
+    if (receiverError) {
+      validation.valid = false;
+      validation.error = 'Receiver profile not found';
+      return validation;
+    }
+
+    // Check if both profiles are in the same workspace
+    if (senderProfile.workspace_id !== receiverProfile.workspace_id) {
+      validation.valid = false;
+      validation.error = 'Cannot send karma to users in different workspaces';
+      return validation;
+    }
+
+    // HIERARCHICAL VALIDATION - Stop at first error
+    
+    // Check 1: Minimum amount
+    if (amount < workspaceSettings.min_transaction_amount) {
+      validation.valid = false;
+      validation.error = `Amount too low. Minimum: ${workspaceSettings.min_transaction_amount} ${workspaceSettings.currency_name}`;
+      return validation;
+    }
+
+    // Check 2: Maximum amount
+    if (amount > workspaceSettings.max_transaction_amount) {
+      validation.valid = false;
+      validation.error = `Amount too high. Maximum: ${workspaceSettings.max_transaction_amount} ${workspaceSettings.currency_name}`;
+      return validation;
+    }
+
+    // Check 3: Giving balance
+    if (senderProfile.giving_balance < amount) {
+      validation.valid = false;
+      validation.error = `Insufficient giving balance. You have ${senderProfile.giving_balance} ${workspaceSettings.currency_name}`;
+      return validation;
+    }
+
+    // Check 4: Daily limit
+    if (amount > dailyLimitInfo.remaining_limit) {
+      validation.valid = false;
+      validation.error = `Daily limit exceeded. Remaining today: ${dailyLimitInfo.remaining_limit} ${workspaceSettings.currency_name}`;
+      return validation;
+    }
+
+    // If valid, add warnings
+    const newPercentage = dailyLimitInfo.daily_limit > 0 
+      ? ((dailyLimitInfo.amount_sent_today + amount) / dailyLimitInfo.daily_limit) * 100 
+      : 0;
+    if (newPercentage >= 80 && newPercentage < 100) {
+      validation.warnings.push(`This transaction will use ${Math.round(newPercentage)}% of your daily limit`);
+    }
+
+    // Check if receiver is active
+    if (!receiverProfile.active) {
+      validation.warnings.push('The receiver is currently inactive');
+    }
+
+  } catch (err) {
+    validation.valid = false;
+    validation.error = 'Validation failed due to system error';
+  }
+
+  return validation;
+}
+
+/**
+ * Validate a transaction before execution - Legacy function for backwards compatibility
+ * Use validateTransactionOptimized with cached data for better performance
+ */
+export async function validateTransactionLegacy(
+  senderProfileId: string,
+  receiverProfileId: string,
+  amount: number
+): Promise<TransactionValidation> {
+  try {
+    // Get sender profile with workspace settings
+    const { data: senderProfile, error: senderError } = await supabase
+      .from('profiles')
+      .select(`
+        id,
+        giving_balance,
+        workspace_id,
+        workspace:workspaces (*)
+      `)
+      .eq('id', senderProfileId)
+      .single();
+
+    if (senderError || !senderProfile) {
+      return {
+        valid: false,
+        error: 'Sender profile not found',
+        warnings: [],
+      };
+    }
+
+    // Get workspace settings
+    const { data: workspaceSettings, error: settingsError } = await supabase
+      .from('workspace_settings')
+      .select('min_transaction_amount, max_transaction_amount, currency_name, daily_limit_percentage, monthly_allowance')
+      .eq('workspace_id', senderProfile.workspace_id)
+      .single();
+
+    let workspace: { min_transaction_amount: number; max_transaction_amount: number; currency_name: string; daily_limit_percentage: number; monthly_allowance: number };
+    
+    if (!workspaceSettings || settingsError) {
+      // Fallback to default settings
+      const workspaceData = (Array.isArray(senderProfile.workspace) ? senderProfile.workspace[0] : senderProfile.workspace) as { currency_name: string };
+      workspace = {
+        min_transaction_amount: 1,
+        max_transaction_amount: 50,
+        currency_name: workspaceData.currency_name || 'Karma',
+        daily_limit_percentage: 30,
+        monthly_allowance: 0,
+      };
+    } else {
+      workspace = workspaceSettings;
+    }
+
+    const dailyLimit = await getDailyLimitInfo(senderProfileId);
+
+    return validateTransaction(
+      { id: senderProfile.id, giving_balance: senderProfile.giving_balance, workspace_id: senderProfile.workspace_id },
+      receiverProfileId,
+      amount,
+      workspace,
+      dailyLimit
+    );
+  } catch (err) {
+    return {
+      valid: false,
+      error: 'Validation failed due to system error',
+      warnings: [],
+    };
+  }
 }
 
 // ============================================================================
@@ -283,10 +424,10 @@ export async function executeTransaction(
   amount: number,
   message?: string
 ): Promise<string> {
-  // Validate first
-  const validation = await validateTransaction(senderProfileId, receiverProfileId, amount);
+  // Validate first using legacy function
+  const validation = await validateTransactionLegacy(senderProfileId, receiverProfileId, amount);
   if (!validation.valid) {
-    throw new Error(validation.errors.join(', '));
+    throw new Error(validation.error || 'Validation failed');
   }
 
   // Use the existing RPC function which handles all the balance updates and limits
