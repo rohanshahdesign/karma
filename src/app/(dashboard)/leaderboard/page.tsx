@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { getCurrentProfile } from '@/lib/permissions';
 import { Profile } from '@/lib/supabase-types';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount } from '@/lib/currency';
+import { useUser } from '@/contexts/UserContext';
 import {
   Card,
   CardContent,
@@ -39,7 +39,7 @@ type Period = 'week' | 'month' | 'all_time';
 
 export default function LeaderboardPage() {
   const { currencyName } = useCurrency();
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const { profile: currentProfile, isLoading: isProfileLoading } = useUser();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -148,30 +148,10 @@ export default function LeaderboardPage() {
       console.error('Failed to load leaderboard:', err);
       setError('Failed to load leaderboard');
     } finally {
+      setLoading(false);
       setRefreshing(false);
     }
   }, [currentProfile, activePeriod]);
-
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        const profile = await getCurrentProfile();
-        if (!profile) {
-          setError('Profile not found');
-          return;
-        }
-        setCurrentProfile(profile);
-      } catch (err) {
-        console.error('Failed to load profile:', err);
-        setError('Failed to load profile');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadInitialData();
-  }, []);
 
   useEffect(() => {
     if (currentProfile) {
@@ -215,7 +195,7 @@ export default function LeaderboardPage() {
     return email.substring(0, 2).toUpperCase();
   };
 
-  if (loading) {
+  if (isProfileLoading || (loading && leaderboard.length === 0)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -223,12 +203,12 @@ export default function LeaderboardPage() {
     );
   }
 
-  if (error) {
+  if (error || !currentProfile) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-gray-600 mb-4">{error || 'Unable to load profile'}</p>
           <Button onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>
@@ -244,7 +224,7 @@ export default function LeaderboardPage() {
             Leaderboard
           </h1>
           <p className="text-gray-600">
-            See who&apos;s spreading the most {currencyName.toLowerCase()} in your workspace
+            See who's spreading the most {currencyName.toLowerCase()} in your workspace
           </p>
         </div>
         <Button

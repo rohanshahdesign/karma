@@ -2,36 +2,31 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentProfileClient } from '@/lib/database-client';
+import { useUser } from '@/contexts/UserContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
 export default function ProfileRedirectPage() {
   const router = useRouter();
+  const { profile, isLoading } = useUser();
 
   useEffect(() => {
-    const redirectToOwnProfile = async () => {
-      try {
-        const profile = await getCurrentProfileClient();
-        if (profile) {
-          // Use the actual username field from the profile
-          if (profile.username) {
-            router.replace(`/profile/${profile.username}`);
-          } else {
-            // Fallback to email local part if no username is set
-            const emailUsername = profile.email.split('@')[0];
-            router.replace(`/profile/${emailUsername}`);
-          }
-        } else {
-          router.replace('/home');
-        }
-      } catch (error) {
-        console.error('Failed to get current profile:', error);
-        router.replace('/home');
-      }
-    };
+    if (isLoading) return;
 
-    redirectToOwnProfile();
-  }, [router]);
+    if (profile) {
+      // Use the actual username field from the profile
+      if (profile.username) {
+        router.replace(`/profile/${profile.username}`);
+      } else {
+        // Fallback to email local part if no username is set
+        const emailUsername = profile.email.split('@')[0];
+        router.replace(`/profile/${emailUsername}`);
+      }
+    } else {
+      // If no profile and not loading, something is wrong (should be handled by ProtectedRoute/Auth)
+      // but safe fallback
+      // router.replace('/home'); 
+    }
+  }, [router, profile, isLoading]);
 
   return (
     <ProtectedRoute>

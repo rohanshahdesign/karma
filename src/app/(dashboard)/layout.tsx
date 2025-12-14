@@ -1,6 +1,7 @@
 import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
+import { UserProvider } from '@/contexts/UserContext';
 
 export default function DashboardLayout({
   children,
@@ -8,12 +9,14 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ProtectedRoute>
-      <CurrencyProvider>
-        <AppLayout>
-          {children}
-        </AppLayout>
-      </CurrencyProvider>
-    </ProtectedRoute>
+    <UserProvider>
+      <ProtectedRoute>
+        <CurrencyProvider>
+          <AppLayout>
+            {children}
+          </AppLayout>
+        </CurrencyProvider>
+      </ProtectedRoute>
+    </UserProvider>
   );
 }

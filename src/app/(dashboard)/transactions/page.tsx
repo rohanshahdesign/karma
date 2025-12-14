@@ -36,11 +36,11 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
-import { getCurrentProfile } from '@/lib/permissions';
+import { TransactionWithProfiles } from '@/lib/supabase-types';
 import { getTransactionsByProfileClient, getTransactionsByWorkspaceClient } from '@/lib/database-client';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount } from '@/lib/currency';
+import { useUser } from '@/contexts/UserContext';
 
 type TransactionType = 'all' | 'sent' | 'received';
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
@@ -56,7 +56,7 @@ interface FilterState {
 
 export default function TransactionsPage() {
   const { currencyName } = useCurrency();
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const { profile: currentProfile } = useUser();
   const [transactions, setTransactions] = useState<TransactionWithProfiles[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,10 +74,6 @@ export default function TransactionsPage() {
   });
 
   const limit = 20;
-
-  useEffect(() => {
-    loadInitialData();
-  }, []);
 
   // Update URL when view changes
   useEffect(() => {
@@ -107,6 +103,7 @@ export default function TransactionsPage() {
 
     try {
       setRefreshing(true);
+      if (transactions.length === 0) setLoading(true); // Initial load
       
       // Build query config based on filters
       const queryConfig = {
@@ -189,32 +186,16 @@ export default function TransactionsPage() {
       console.error('Failed to load transactions:', err);
       setError('Failed to load transactions');
     } finally {
+      setLoading(false);
       setRefreshing(false);
     }
-  }, [currentProfile, page, filters, limit, view]);
+  }, [currentProfile, page, filters, limit, view, transactions.length]);
 
   useEffect(() => {
     if (currentProfile) {
       loadTransactions();
     }
   }, [currentProfile, loadTransactions]);
-
-  const loadInitialData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const profile = await getCurrentProfile();
-      if (!profile) {
-        throw new Error('User profile not found');
-      }
-      setCurrentProfile(profile);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
 
 
   const handleRefresh = () => {
@@ -301,7 +282,7 @@ export default function TransactionsPage() {
     }
   };
 
-  if (loading) {
+  if (loading && transactions.length === 0) {
     return (
       <ProtectedRoute>
         <div className="flex items-center justify-center min-h-screen">
@@ -318,7 +299,7 @@ export default function TransactionsPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16">
               <p className="text-red-600 mb-4">{error}</p>
-              <Button onClick={loadInitialData} variant="outline">
+              <Button onClick={() => loadTransactions()} variant="outline">
                 Try Again
               </Button>
             </CardContent>

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentProfile, hasRole } from '../../lib/permissions';
+import { hasRole } from '../../lib/permissions';
 import { UserRole } from '../../lib/types';
+import { useUser } from '@/contexts/UserContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -22,45 +23,35 @@ export default function ProtectedRoute({
     </div>
   ),
 }: ProtectedRouteProps) {
-  const [isLoading, setIsLoading] = useState(true);
+  const { profile, isLoading, isAuthenticated } = useUser();
   const [isAuthorized, setIsAuthorized] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const profile = await getCurrentProfile();
+    // Wait for initial load
+    if (isLoading) return;
 
-        if (!profile) {
-          // No profile means user needs to complete onboarding
-          router.replace(fallbackPath);
-          return;
-        }
+    // Not authenticated or no profile
+    if (!isAuthenticated || !profile) {
+      router.replace(fallbackPath);
+      return;
+    }
 
-        if (!hasRole(profile, requiredRoles)) {
-          // User doesn't have required role
-          router.replace('/home'); // Redirect to home or show unauthorized message
-          return;
-        }
+    // Check roles
+    if (!hasRole(profile, requiredRoles)) {
+      router.replace('/home');
+      return;
+    }
 
-        setIsAuthorized(true);
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        router.replace('/login');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, [requiredRoles, fallbackPath, router]);
+    setIsAuthorized(true);
+  }, [isLoading, isAuthenticated, profile, requiredRoles, fallbackPath, router]);
 
   if (isLoading) {
     return <>{loadingComponent}</>;
   }
 
   if (!isAuthorized) {
-    return null; // Will redirect, so don't render anything
+    return null; 
   }
 
   return <>{children}</>;
