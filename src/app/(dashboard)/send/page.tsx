@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   getProfileBalance, 
   getDailyLimitInfo, 
-  validateTransaction,
+  validateTransactionOptimized,
   executeTransaction,
   type BalanceInfo, 
   type DailyLimitInfo,
@@ -44,6 +44,7 @@ import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount, CURRENCY_PATTERNS } from '@/lib/currency';
 import { useUser } from '@/contexts/UserContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 interface WorkspaceMember {
   id: string;
@@ -75,6 +76,7 @@ const PREDEFINED_REASONS = [
 export default function SendKarmaPage() {
   const { currencyName } = useCurrency();
   const { profile: currentProfile, isLoading: isProfileLoading } = useUser();
+  const { workspaceSettings } = useWorkspace();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [selectedMember, setSelectedMember] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
@@ -133,7 +135,7 @@ export default function SendKarmaPage() {
   }, [currentProfile]);
 
   const validateCurrentTransaction = useCallback(async () => {
-    if (!currentProfile || !selectedMember || !amount) {
+    if (!currentProfile || !selectedMember || !amount || !dailyLimitInfo || !workspaceSettings) {
       setValidation(null);
       return;
     }
@@ -142,27 +144,33 @@ export default function SendKarmaPage() {
     if (isNaN(numericAmount) || numericAmount <= 0) {
       setValidation({
         valid: false,
-        errors: ['Please enter a valid positive amount'],
+        error: 'Please enter a valid positive amount',
         warnings: [],
       });
       return;
     }
 
     try {
-      const result = await validateTransaction(
-        currentProfile.id,
+      const result = await validateTransactionOptimized(
+        { 
+          id: currentProfile.id, 
+          giving_balance: currentProfile.giving_balance, 
+          workspace_id: currentProfile.workspace_id 
+        },
         selectedMember,
-        numericAmount
+        numericAmount,
+        workspaceSettings,
+        dailyLimitInfo
       );
       setValidation(result);
     } catch {
       setValidation({
         valid: false,
-        errors: ['Validation failed'],
+        error: 'Validation failed',
         warnings: [],
       });
     }
-  }, [currentProfile, selectedMember, amount]);
+  }, [currentProfile, selectedMember, amount, dailyLimitInfo, workspaceSettings]);
 
   const handleSendKarma = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -337,21 +345,21 @@ export default function SendKarmaPage() {
             <div>
               <Label htmlFor="member">Select Teammate *</Label>
               <Select value={selectedMember} onValueChange={setSelectedMember}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 text-left h-14 py-3">
                   <SelectValue placeholder="Choose a teammate" />
                 </SelectTrigger>
                 <SelectContent>
                   {members.map((member) => (
                     <SelectItem key={member.id} value={member.id}>
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+                      <div className="flex items-center align-left space-x-3 text-left">
+                        <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-white text-sm font-medium">
                             {getInitials(member.full_name, member.email)}
                           </span>
                         </div>
-                        <div>
-                          <div className="font-medium">{member.full_name || member.email}</div>
-                          <div className="text-sm text-gray-500 capitalize">
+                        <div className="text-left">
+                          <div className="font-medium text-left">{member.full_name || member.email}</div>
+                          <div className="text-sm text-gray-500 capitalize text-left">
                             {member.role.replace('_', ' ')}
                             {member.department && ` • ${member.department}`}
                           </div>
@@ -427,16 +435,10 @@ export default function SendKarmaPage() {
             {/* Validation Messages */}
             {validation && (
               <div className="space-y-2">
-                {validation.errors.length > 0 && (
+                {validation.error && (
                   <Alert>
                     <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      <ul className="list-disc list-inside space-y-1">
-                        {validation.errors.map((error, index) => (
-                          <li key={index}>{error}</li>
-                        ))}
-                      </ul>
-                    </AlertDescription>
+                    <AlertDescription>{validation.error}</AlertDescription>
                   </Alert>
                 )}
                 {validation.warnings.length > 0 && (
@@ -444,7 +446,7 @@ export default function SendKarmaPage() {
                     <Info className="h-4 w-4" />
                     <AlertDescription>
                       <ul className="list-disc list-inside space-y-1">
-                        {validation.warnings.map((warning, index) => (
+                        {validation.warnings.map((warning: string, index: number) => (
                           <li key={index}>{warning}</li>
                         ))}
                       </ul>
