@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserAvatar, getUserDisplayName } from '@/components/ui/user-avatar';
 import { 
   History,
@@ -30,16 +31,20 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  Users,
+  User,
+  ArrowRight,
 } from 'lucide-react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
-import { getCurrentProfile } from '@/lib/permissions';
-import { getTransactionsByProfileClient } from '@/lib/database-client';
+import { TransactionWithProfiles } from '@/lib/supabase-types';
+import { getTransactionsByProfileClient, getTransactionsByWorkspaceClient } from '@/lib/database-client';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount } from '@/lib/currency';
+import { useUser } from '@/contexts/UserContext';
 
 type TransactionType = 'all' | 'sent' | 'received';
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
+type ViewType = 'you' | 'everyone';
 
 interface FilterState {
   search: string;
@@ -51,7 +56,7 @@ interface FilterState {
 
 export default function TransactionsPage() {
   const { currencyName } = useCurrency();
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const { profile: currentProfile } = useUser();
   const [transactions, setTransactions] = useState<TransactionWithProfiles[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,6 +65,7 @@ export default function TransactionsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrev, setHasPrev] = useState(false);
+  const [view, setView] = useState<ViewType>('you');
   
   const [filters, setFilters] = useState<FilterState>({
     search: '',
@@ -69,15 +75,35 @@ export default function TransactionsPage() {
 
   const limit = 20;
 
+  // Update URL when view changes
   useEffect(() => {
-    loadInitialData();
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view');
+    if (viewParam === 'everyone') {
+      setView('everyone');
+    } else {
+      setView('you');
+    }
   }, []);
+
+  const updateView = (newView: ViewType) => {
+    setView(newView);
+    setPage(1);
+    const url = new URL(window.location.href);
+    if (newView === 'everyone') {
+      url.searchParams.set('view', 'everyone');
+    } else {
+      url.searchParams.delete('view');
+    }
+    window.history.pushState({}, '', url);
+  };
 
   const loadTransactions = useCallback(async () => {
     if (!currentProfile) return;
 
     try {
       setRefreshing(true);
+      if (transactions.length === 0) setLoading(true); // Initial load
       
       // Build query config based on filters
       const queryConfig = {
@@ -86,12 +112,18 @@ export default function TransactionsPage() {
         sort: [{ field: 'created_at', order: 'desc' as const }],
       };
 
-      const result = await getTransactionsByProfileClient(currentProfile.id, queryConfig);
+      let result;
+      
+      if (view === 'everyone') {
+        result = await getTransactionsByWorkspaceClient(currentProfile.workspace_id, queryConfig);
+      } else {
+        result = await getTransactionsByProfileClient(currentProfile.id, queryConfig);
+      }
       
       let filteredData = result.data || [];
       
       // Apply client-side filters
-      if (filters.type !== 'all') {
+      if (view === 'you' && filters.type !== 'all') {
         filteredData = filteredData.filter(transaction => 
           filters.type === 'sent' 
             ? transaction.sender_profile_id === currentProfile.id
@@ -154,32 +186,16 @@ export default function TransactionsPage() {
       console.error('Failed to load transactions:', err);
       setError('Failed to load transactions');
     } finally {
+      setLoading(false);
       setRefreshing(false);
     }
-  }, [currentProfile, page, filters, limit]);
+  }, [currentProfile, page, filters, limit, view, transactions.length]);
 
   useEffect(() => {
     if (currentProfile) {
       loadTransactions();
     }
   }, [currentProfile, loadTransactions]);
-
-  const loadInitialData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const profile = await getCurrentProfile();
-      if (!profile) {
-        throw new Error('User profile not found');
-      }
-      setCurrentProfile(profile);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
 
 
   const handleRefresh = () => {
@@ -193,6 +209,16 @@ export default function TransactionsPage() {
 
 
   const getTransactionIcon = (transaction: TransactionWithProfiles) => {
+    if (view === 'everyone') {
+        // Check if user is involved
+        if (transaction.sender_profile_id === currentProfile?.id) {
+            return <ArrowUpRight className="h-4 w-4 text-red-500" />;
+        } else if (transaction.receiver_profile_id === currentProfile?.id) {
+            return <ArrowDownLeft className="h-4 w-4 text-green-500" />;
+        }
+        return <ArrowRight className="h-4 w-4 text-gray-500" />;
+    }
+
     const isSent = transaction.sender_profile_id === currentProfile?.id;
     return isSent ? (
       <ArrowUpRight className="h-4 w-4 text-red-500" />
@@ -202,6 +228,26 @@ export default function TransactionsPage() {
   };
 
   const getTransactionBadge = (transaction: TransactionWithProfiles) => {
+    if (view === 'everyone') {
+        // If current user is involved, show Sent/Received badges
+        if (transaction.sender_profile_id === currentProfile?.id) {
+            return (
+                <Badge variant="destructive" className="text-xs bg-red-100 text-red-800 hover:bg-red-100">
+                    Sent
+                </Badge>
+            );
+        } else if (transaction.receiver_profile_id === currentProfile?.id) {
+            return (
+                <Badge variant="default" className="text-xs">
+                    Received
+                </Badge>
+            );
+        }
+        // For third party transactions, we don't need a badge or maybe a "Public" badge?
+        // Leaving empty for now as requested
+        return null;
+    }
+
     const isSent = transaction.sender_profile_id === currentProfile?.id;
     return (
       <Badge 
@@ -211,11 +257,6 @@ export default function TransactionsPage() {
         {isSent ? 'Sent' : 'Received'}
       </Badge>
     );
-  };
-
-  const getOtherUser = (transaction: TransactionWithProfiles) => {
-    const isSent = transaction.sender_profile_id === currentProfile?.id;
-    return isSent ? transaction.receiver_profile : transaction.sender_profile;
   };
 
   const formatDate = (dateString: string) => {
@@ -234,7 +275,7 @@ export default function TransactionsPage() {
     }
   };
 
-  if (loading) {
+  if (loading && transactions.length === 0) {
     return (
       <ProtectedRoute>
         <div className="flex items-center justify-center min-h-screen">
@@ -251,7 +292,7 @@ export default function TransactionsPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16">
               <p className="text-red-600 mb-4">{error}</p>
-              <Button onClick={loadInitialData} variant="outline">
+              <Button onClick={() => loadTransactions()} variant="outline">
                 Try Again
               </Button>
             </CardContent>
@@ -282,6 +323,20 @@ export default function TransactionsPage() {
             </Button>
           </div>
 
+           {/* View Toggle */}
+           <Tabs value={view} onValueChange={(v) => updateView(v as ViewType)} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+              <TabsTrigger value="you" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                You
+              </TabsTrigger>
+              <TabsTrigger value="everyone" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Everyone
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           {/* Filters */}
           <Card>
             <CardHeader>
@@ -307,23 +362,25 @@ export default function TransactionsPage() {
                   </div>
                 </div>
 
-                {/* Transaction Type */}
-                <div>
-                  <Label>Transaction Type</Label>
-                  <Select 
-                    value={filters.type} 
-                    onValueChange={(value: TransactionType) => handleFilterChange('type', value)}
-                  >
-                    <SelectTrigger className="mt-2">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Transactions</SelectItem>
-                      <SelectItem value="sent">Sent</SelectItem>
-                      <SelectItem value="received">Received</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Transaction Type - Only show for "You" view */}
+                {view === 'you' && (
+                  <div>
+                    <Label>Transaction Type</Label>
+                    <Select 
+                      value={filters.type} 
+                      onValueChange={(value: TransactionType) => handleFilterChange('type', value)}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Transactions</SelectItem>
+                        <SelectItem value="sent">Sent</SelectItem>
+                        <SelectItem value="received">Received</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {/* Date Filter */}
                 <div>
@@ -391,9 +448,20 @@ export default function TransactionsPage() {
               ) : (
                 <div className="space-y-4">
                   {transactions.map((transaction) => {
-                    const otherUser = getOtherUser(transaction);
                     const isSent = transaction.sender_profile_id === currentProfile?.id;
+                    const isReceived = transaction.receiver_profile_id === currentProfile?.id;
+                    const isThirdParty = !isSent && !isReceived;
                     
+                    const displayUser = view === 'everyone' && isThirdParty 
+                        ? transaction.sender_profile 
+                        : (isSent ? transaction.receiver_profile : transaction.sender_profile);
+
+                    const amountClass = isThirdParty 
+                        ? 'text-gray-900' 
+                        : (isSent ? 'text-red-600' : 'text-green-600');
+                    
+                    const amountPrefix = isThirdParty ? '' : (isSent ? '-' : '+');
+
                     return (
                       <div key={transaction.id} className="flex items-center space-x-4 p-4 border border-[#ebebeb] rounded-lg">
                         {/* Icon */}
@@ -402,25 +470,35 @@ export default function TransactionsPage() {
                         </div>
 
                         {/* Avatar */}
-                        <UserAvatar user={otherUser} size="lg" />
+                        <UserAvatar user={displayUser} size="lg" />
 
                         {/* Transaction Details */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-medium text-gray-900">
-                                {isSent ? 'Sent to' : 'Received from'} {' '}
-                                <span className="font-semibold">
-                                  {getUserDisplayName(otherUser)}
-                                </span>
+                                {isThirdParty ? (
+                                    <>
+                                        <span className="font-semibold">{getUserDisplayName(transaction.sender_profile)}</span>
+                                        {' '}sent to{' '}
+                                        <span className="font-semibold">{getUserDisplayName(transaction.receiver_profile)}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        {isSent ? 'Sent to' : 'Received from'} {' '}
+                                        <span className="font-semibold">
+                                            {getUserDisplayName(displayUser)}
+                                        </span>
+                                    </>
+                                )}
                               </p>
                               <p className="text-xs text-gray-500">
                                 {formatDate(transaction.created_at)}
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className={`text-lg font-bold ${isSent ? 'text-red-600' : 'text-green-600'}`}>
-                                {isSent ? '-' : '+'}{formatCurrencyAmount(transaction.amount, currencyName)}
+                              <p className={`text-lg font-bold ${amountClass}`}>
+                                {amountPrefix}{formatCurrencyAmount(transaction.amount, currencyName)}
                               </p>
                               {getTransactionBadge(transaction)}
                             </div>

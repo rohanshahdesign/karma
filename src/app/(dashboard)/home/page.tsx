@@ -4,10 +4,10 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { getCurrentProfile } from '@/lib/permissions';
 import { getProfileBalance, getDailyLimitInfo, type BalanceInfo, type DailyLimitInfo } from '@/lib/balance';
-import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
+import { TransactionWithProfiles } from '@/lib/supabase-types';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useUser } from '@/contexts/UserContext';
 import { formatCurrencyAmount, CURRENCY_PATTERNS } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,7 +34,7 @@ import {
 export default function DashboardHomePage() {
   const router = useRouter();
   const { currencyName } = useCurrency();
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const { profile: currentProfile, isLoading: isProfileLoading } = useUser();
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null);
   const [dailyLimitInfo, setDailyLimitInfo] = useState<DailyLimitInfo | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<TransactionWithProfiles[]>([]);
@@ -42,34 +42,16 @@ export default function DashboardHomePage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadDashboardData = useCallback(async () => {
+    if (!currentProfile) return;
+
     try {
       setLoading(true);
       setError(null);
 
-      // Get current user profile
-      const profile = await getCurrentProfile();
-      if (!profile) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
-          router.replace('/login');
-          return;
-        }
-        // Create pending user entry
-        await supabase
-          .from('pending_users')
-          .upsert({ auth_user_id: user.id, email: user.email });
-        router.replace('/onboarding');
-        return;
-      }
-
-      setCurrentProfile(profile);
-
       // Load balance information
       const [balance, dailyLimit] = await Promise.all([
-        getProfileBalance(profile.id),
-        getDailyLimitInfo(profile.id),
+        getProfileBalance(currentProfile.id),
+        getDailyLimitInfo(currentProfile.id),
       ]);
 
       setBalanceInfo(balance);
@@ -87,7 +69,7 @@ export default function DashboardHomePage() {
             id, email, full_name, avatar_url
           )
         `)
-        .or(`sender_profile_id.eq.${profile.id},receiver_profile_id.eq.${profile.id}`)
+        .or(`sender_profile_id.eq.${currentProfile.id},receiver_profile_id.eq.${currentProfile.id}`)
         .order('created_at', { ascending: false })
         .limit(5);
 
@@ -98,11 +80,27 @@ export default function DashboardHomePage() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [currentProfile]);
 
   useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+    if (currentProfile) {
+      loadDashboardData();
+    } else if (!isProfileLoading && !currentProfile) {
+        // Handle case where user is logged in but has no profile (e.g. new user)
+        // Check if we need to create a pending user entry or redirect
+        const checkUser = async () => {
+             const { data: { user } } = await supabase.auth.getUser();
+             if (user) {
+                 // Create pending user entry if needed
+                 await supabase
+                  .from('pending_users')
+                  .upsert({ auth_user_id: user.id, email: user.email });
+                 router.replace('/onboarding');
+             }
+        };
+        checkUser();
+    }
+  }, [currentProfile, isProfileLoading, loadDashboardData, router]);
 
   const formatTimeAgo = (dateString: string) => {
     const now = new Date();
@@ -117,7 +115,7 @@ export default function DashboardHomePage() {
   };
 
 
-  if (loading) {
+  if (isProfileLoading || (loading && !balanceInfo)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -142,10 +140,10 @@ export default function DashboardHomePage() {
       {/* Welcome Header */}
       <div className="space-y-2">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-          Welcome back, {currentProfile.full_name?.split(' ')[0] || 'there'}!
+          Welcome back, {currentProfile.full_name?.split(' ')[0] || "there"}!
         </h1>
         <p className="text-gray-600">
-          Here&apos;s your {currencyName} activity summary
+          Here`&apos;`s your {currencyName} activity summary
         </p>
       </div>
 

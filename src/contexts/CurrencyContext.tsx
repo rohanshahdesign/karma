@@ -1,7 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { getCurrentWorkspaceClient } from '../lib/database-client';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { getWorkspaceClient } from '../lib/database-client';
+import { useUser } from './UserContext';
 
 interface CurrencyContextType {
   currencyName: string;
@@ -12,13 +13,19 @@ interface CurrencyContextType {
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
+  const { profile } = useUser();
   const [currencyName, setCurrencyName] = useState('karma'); // Default fallback
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadCurrencyName = async () => {
+  const loadCurrencyName = useCallback(async () => {
+    if (!profile?.workspace_id) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const workspace = await getCurrentWorkspaceClient();
+      const workspace = await getWorkspaceClient(profile.workspace_id);
       if (workspace?.currency_name) {
         setCurrencyName(workspace.currency_name);
       }
@@ -28,11 +35,11 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [profile?.workspace_id]);
 
   useEffect(() => {
     loadCurrencyName();
-  }, []);
+  }, [loadCurrencyName]);
 
   const refreshCurrency = () => {
     loadCurrencyName();

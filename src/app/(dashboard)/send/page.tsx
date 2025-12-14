@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { getCurrentProfile } from '@/lib/permissions';
 import { 
   getProfileBalance, 
   getDailyLimitInfo, 
@@ -13,7 +11,6 @@ import {
   type DailyLimitInfo,
   type TransactionValidation
 } from '@/lib/balance';
-import { Profile } from '@/lib/supabase-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,6 +43,7 @@ import {
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount, CURRENCY_PATTERNS } from '@/lib/currency';
+import { useUser } from '@/contexts/UserContext';
 
 interface WorkspaceMember {
   id: string;
@@ -75,9 +73,8 @@ const PREDEFINED_REASONS = [
 ];
 
 export default function SendKarmaPage() {
-  const router = useRouter();
   const { currencyName } = useCurrency();
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const { profile: currentProfile, isLoading: isProfileLoading } = useUser();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [selectedMember, setSelectedMember] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
@@ -91,21 +88,16 @@ export default function SendKarmaPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadInitialData = useCallback(async () => {
+    if (!currentProfile) return;
+
     try {
       setLoading(true);
       setError(null);
 
-      const profile = await getCurrentProfile();
-      if (!profile) {
-        router.push('/login');
-        return;
-      }
-      setCurrentProfile(profile);
-
       // Load balance and limit info
       const [balance, dailyLimit] = await Promise.all([
-        getProfileBalance(profile.id),
-        getDailyLimitInfo(profile.id),
+        getProfileBalance(currentProfile.id),
+        getDailyLimitInfo(currentProfile.id),
       ]);
       setBalanceInfo(balance);
       setDailyLimitInfo(dailyLimit);
@@ -114,19 +106,19 @@ export default function SendKarmaPage() {
       const { data: membersData, error: membersError } = await supabase
         .from('profiles')
         .select('id, full_name, email, role, department, active')
-        .eq('workspace_id', profile.workspace_id)
+        .eq('workspace_id', currentProfile.workspace_id)
         .eq('active', true)
-        .neq('id', profile.id)
+        .neq('id', currentProfile.id)
         .order('full_name');
 
       if (membersError) throw membersError;
       
       // Filter members based on current user's role
       let filteredMembers = membersData || [];
-      if (profile.role === 'employee') {
+      if (currentProfile.role === 'employee') {
         // Employees can only send to members from different departments
         filteredMembers = filteredMembers.filter(
-          member => member.department !== profile.department
+          member => member.department !== currentProfile.department
         );
       }
       // Admins and super_admins have no restrictions
@@ -138,7 +130,7 @@ export default function SendKarmaPage() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [currentProfile]);
 
   const validateCurrentTransaction = useCallback(async () => {
     if (!currentProfile || !selectedMember || !amount) {
@@ -239,8 +231,10 @@ export default function SendKarmaPage() {
   };
 
   useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    if (currentProfile) {
+      loadInitialData();
+    }
+  }, [currentProfile, loadInitialData]);
 
   useEffect(() => {
     if (currentProfile && selectedMember && amount) {
@@ -250,7 +244,7 @@ export default function SendKarmaPage() {
     }
   }, [currentProfile, selectedMember, amount, validateCurrentTransaction]);
 
-  if (loading) {
+  if (isProfileLoading || (loading && !balanceInfo)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>

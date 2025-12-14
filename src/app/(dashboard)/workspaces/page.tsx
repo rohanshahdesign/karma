@@ -39,10 +39,9 @@ import {
   Filter,
 } from 'lucide-react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { Profile, Workspace } from '@/lib/supabase-types';
+import { Workspace } from '@/lib/supabase-types';
 import { WorkspaceMember } from '@/lib/types';
 import { toast } from 'sonner';
-import { getCurrentProfile } from '@/lib/permissions';
 import { 
   getWorkspaceRewards,
   getWorkspaceRewardCategories,
@@ -56,6 +55,7 @@ import {
 } from '@/lib/database/rewards-client';
 import type { Database } from '@/lib/database.types';
 import { DepartmentManager } from '@/components/ui/department-manager';
+import { useUser } from '@/contexts/UserContext';
 
 type RewardRedemption = Database['public']['Tables']['reward_redemptions']['Row'];
 
@@ -66,11 +66,11 @@ interface WorkspaceWithMembers extends Workspace {
 }
 
 export default function WorkspacesPage() {
+  const { profile: currentProfile, isLoading: isProfileLoading, refreshProfile } = useUser();
   const [workspaces, setWorkspaces] = useState<WorkspaceWithMembers[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [newWorkspaceData, setNewWorkspaceData] = useState<{ name?: string }>({});
   const [editingSettings, setEditingSettings] = useState(false);
   const [settingsData, setSettingsData] = useState<{
@@ -108,22 +108,17 @@ export default function WorkspacesPage() {
   };
 
   const loadProfileAndWorkspaces = useCallback(async () => {
+    if (!currentProfile) return;
+
     try {
       setLoading(true);
       setError(null);
-
-      // Get current user profile
-      const profileData = await getCurrentProfile();
-      if (!profileData) {
-        throw new Error('User profile not found');
-      }
-      setCurrentProfile(profileData);
 
       // Get workspace data with members
       const { data: workspaceData, error: workspaceError } = await supabase
         .from('workspaces')
         .select('*')
-        .eq('id', profileData.workspace_id)
+        .eq('id', currentProfile.workspace_id)
         .single();
 
       if (workspaceError) throw workspaceError;
@@ -132,14 +127,14 @@ export default function WorkspacesPage() {
       const { data: workspaceSettings } = await supabase
         .from('workspace_settings')
         .select('*')
-        .eq('workspace_id', profileData.workspace_id)
+        .eq('workspace_id', currentProfile.workspace_id)
         .single();
 
       // Get workspace members
       const { data: members, error: membersError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('workspace_id', profileData.workspace_id);
+        .eq('workspace_id', currentProfile.workspace_id);
 
       if (membersError) throw membersError;
 
@@ -147,23 +142,23 @@ export default function WorkspacesPage() {
       const { data: invitations } = await supabase
         .from('invitations')
         .select('code')
-        .eq('workspace_id', profileData.workspace_id)
+        .eq('workspace_id', currentProfile.workspace_id)
         .eq('active', true)
         .limit(1)
         .single();
 
       // If no invitation exists, create one
       let inviteCode = invitations?.code;
-      if (!inviteCode && profileData.role === 'super_admin') {
+      if (!inviteCode && currentProfile.role === 'super_admin') {
         const readableCode = generateInviteCode();
         // token is auto-generated UUID by database
         
         const { error: createInviteError } = await supabase
           .from('invitations')
           .insert({
-            workspace_id: profileData.workspace_id,
+            workspace_id: currentProfile.workspace_id,
             code: readableCode,          // Human-readable 6-char code
-            created_by_profile_id: profileData.id,
+            created_by_profile_id: currentProfile.id,
             uses_count: 0,
             active: true
             // token will be auto-generated as UUID by database
@@ -188,7 +183,7 @@ export default function WorkspacesPage() {
           transaction_count: 0,
           auth_user: { id: member.auth_user_id, email: member.email, created_at: member.created_at } as { id: string; email: string; created_at: string }
         })),
-        role: profileData.role as 'super_admin' | 'admin' | 'employee',
+        role: currentProfile.role as 'super_admin' | 'admin' | 'employee',
         invite_code: inviteCode
       };
 
@@ -198,7 +193,7 @@ export default function WorkspacesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentProfile]);
 
   const loadRewardsData = useCallback(async (workspaceId: string) => {
     try {
@@ -250,8 +245,10 @@ export default function WorkspacesPage() {
   }, [currentProfile?.role]);
 
   useEffect(() => {
-    loadProfileAndWorkspaces();
-  }, [loadProfileAndWorkspaces]);
+    if (currentProfile) {
+      loadProfileAndWorkspaces();
+    }
+  }, [currentProfile, loadProfileAndWorkspaces]);
 
   // Load rewards when workspace is ready
   useEffect(() => {
@@ -285,7 +282,8 @@ export default function WorkspacesPage() {
       setShowCreateDialog(false);
       setNewWorkspaceData({});
 
-      await loadProfileAndWorkspaces();
+      // Refresh profile to get new workspace ID and role
+      await refreshProfile();
       toast.success(`Successfully created the "${newWorkspaceData.name}" workspace.`);
     } catch (err) {
       const errorMessage =
@@ -533,7 +531,8 @@ export default function WorkspacesPage() {
       
       // Reload profile and rewards data
       await Promise.all([
-        loadProfileAndWorkspaces(),
+        refreshProfile(), // Refresh profile to update balance
+        loadProfileAndWorkspaces(), // Reload workspace data just in case
         loadRewardsData(currentProfile.workspace_id)
       ]);
     } catch (err) {
@@ -579,7 +578,7 @@ export default function WorkspacesPage() {
     return reward.tags?.some(tag => selectedRewardTags.includes(tag));
   });
 
-  if (loading) {
+  if (isProfileLoading || (loading && workspaces.length === 0)) {
     return (
       <ProtectedRoute>
         <div className="flex items-center justify-center min-h-screen">
@@ -613,7 +612,7 @@ export default function WorkspacesPage() {
                 <DialogTitle>Create New Workspace</DialogTitle>
                 <DialogDescription>
                   Set up a new workspace for your team to collaborate and
-                  recognize each other&apos;s contributions.
+                  recognize each other`&apos;`s contributions.
                 </DialogDescription>
               </DialogHeader>
 

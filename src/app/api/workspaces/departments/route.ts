@@ -10,7 +10,7 @@ const DEFAULT_DEPARTMENTS = ['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Mark
 export async function GET(request: NextRequest) {
   try {
     // Get the authenticated user using the proper authentication helper
-    const { id: _userId, profile: userProfile } = await getAuthenticatedUserForJoin(request);
+    const { profile: userProfile } = await getAuthenticatedUserForJoin(request);
     
     if (!userProfile) {
       return NextResponse.json(

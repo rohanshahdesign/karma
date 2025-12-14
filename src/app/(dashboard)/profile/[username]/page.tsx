@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { Profile, TransactionWithProfiles } from '@/lib/supabase-types';
-import { getCurrentProfileClient, getTransactionsByProfileClient } from '@/lib/database-client';
+import { getTransactionsByProfileClient } from '@/lib/database-client';
 import { supabase } from '@/lib/supabase';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount } from '@/lib/currency';
@@ -38,8 +38,7 @@ import CompactBadge from '@/components/badges/CompactBadge';
 import BadgesList from '@/components/badges/BadgesList';
 import { EditProfileDialog } from '@/components/profile/EditProfileDialog';
 import SlackConnection from '@/components/auth/SlackConnection';
-
-// Remove this interface as we'll use BadgeWithProgress from badges-client
+import { useUser } from '@/contexts/UserContext';
 
 interface ProfileStats {
   total_sent: number;
@@ -55,8 +54,8 @@ export default function UserProfilePage() {
   const router = useRouter();
   const { currencyName } = useCurrency();
   const username = params.username as string;
+  const { profile: contextProfile, isLoading: isContextLoading } = useUser();
 
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [viewedProfile, setViewedProfile] = useState<Profile | null>(null);
   const [profileStats, setProfileStats] = useState<ProfileStats | null>(null);
   const [userBadges, setUserBadges] = useState<BadgeWithProgress[]>([]);
@@ -67,52 +66,68 @@ export default function UserProfilePage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadProfileData = useCallback(async () => {
+    // If context is loading, wait
+    if (isContextLoading) return;
+    
+    // If no context profile (and not loading), auth issue
+    if (!contextProfile) {
+        // ProtectedRoute should handle this, but safe fallback
+        return; 
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const current = await getCurrentProfileClient();
-      if (!current) {
-        setError('Authentication required');
-        return;
+      // Check if we're viewing our own profile to avoid a fetch
+      let profileToView: Profile | null = null;
+      
+      const isViewingSelf = 
+        contextProfile.username === username || 
+        contextProfile.email.split('@')[0] === username ||
+        contextProfile.id === username; // Handle ID lookup if needed
+
+      if (isViewingSelf) {
+        console.log('Viewing own profile from context');
+        profileToView = contextProfile;
+      } else {
+        console.log('Fetching other profile:', username);
+        // Fetch other user's profile
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            setError('Authentication required');
+            return;
+        }
+
+        const response = await fetch(`/api/profile/${username}`, {
+            headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+            },
+        });
+
+        const result = await response.json();
+        if (!result.success) {
+            console.error('API error:', result.error);
+            setError(result.error || 'Failed to load profile');
+            return;
+        }
+        profileToView = result.data.profile;
       }
-      setCurrentProfile(current);
 
-      console.log('Looking for username:', username);
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        setError('Authentication required');
-        return;
+      if (!profileToView) {
+          setError('Profile not found');
+          return;
       }
 
-      const response = await fetch(`/api/profile/${username}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        credentials: 'include',
-      });
+      setViewedProfile(profileToView);
 
-      const result = await response.json();
-
-      if (!result.success) {
-        console.error('API error:', result.error);
-        setError(result.error || 'Failed to load profile');
-        return;
-      }
-
-      const profile: Profile = result.data.profile;
-      setViewedProfile(profile);
-
+      // Fetch related data (badges, transactions)
       const [badges, transactionsResult] = await Promise.all([
-        current.workspace_id
-          ? getWorkspaceBadges(current.workspace_id, profile.id)
+        contextProfile.workspace_id
+          ? getWorkspaceBadges(contextProfile.workspace_id, profileToView.id)
           : Promise.resolve<BadgeWithProgress[]>([]),
-        getTransactionsByProfileClient(profile.id, {
+        getTransactionsByProfileClient(profileToView.id, {
           limit: 10,
           sort: [{ field: 'created_at', order: 'desc' }],
         }),
@@ -124,14 +139,14 @@ export default function UserProfilePage() {
       setRecentTransactions(transactions);
 
       const sent = transactions.filter(
-        (t) => t.sender_profile_id === profile.id
+        (t) => t.sender_profile_id === profileToView!.id
       );
       const received = transactions.filter(
-        (t) => t.receiver_profile_id === profile.id
+        (t) => t.receiver_profile_id === profileToView!.id
       );
       const badgesEarned = badges.filter((b) => b.earned).length;
       const daysSinceJoined = Math.floor(
-        (Date.now() - new Date(profile.created_at).getTime()) /
+        (Date.now() - new Date(profileToView.created_at).getTime()) /
           (1000 * 60 * 60 * 24)
       );
 
@@ -149,7 +164,7 @@ export default function UserProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [username]);
+  }, [username, contextProfile, isContextLoading]);
 
   const handleProfileUpdated = useCallback((updatedProfile: Profile) => {
     setViewedProfile(updatedProfile);
@@ -177,9 +192,9 @@ export default function UserProfilePage() {
     }
   };
 
-  const isOwnProfile = currentProfile?.id === viewedProfile?.id;
+  const isOwnProfile = contextProfile?.id === viewedProfile?.id;
 
-  if (loading) {
+  if (loading || isContextLoading) {
     return (
       <ProtectedRoute>
         <div className="flex items-center justify-center min-h-screen">
@@ -456,8 +471,8 @@ export default function UserProfilePage() {
                 <BadgesList 
                   badges={userBadges}
                   showProgress={true}
-                  title={`${getUserDisplayName(viewedProfile)}&apos;s Achievements`}
-                  emptyMessage={`${getUserDisplayName(viewedProfile)} hasn&apos;t earned any badges yet`}
+                  title={`${getUserDisplayName(viewedProfile)}'s Achievements`}
+                  emptyMessage={`${getUserDisplayName(viewedProfile)} hasn't earned any badges yet`}
                 />
               ) : (
                 <Card>
@@ -467,14 +482,14 @@ export default function UserProfilePage() {
                     <p className="text-gray-600 mb-4">
                       {isOwnProfile 
                         ? `Start sending ${currencyName.toLowerCase()} and being active to earn your first badge!`
-                        : `${getUserDisplayName(viewedProfile)} hasn&apos;t earned any badges yet.`
+                        : `${getUserDisplayName(viewedProfile)} hasn't earned any badges yet.`
                       }
                     </p>
                     {isOwnProfile && (
                       <Button
                         onClick={async () => {
                           try {
-                            const awardedBadges = await checkAndAwardBadges(currentProfile!.id);
+                            const awardedBadges = await checkAndAwardBadges(contextProfile!.id);
                             if (awardedBadges.length > 0) {
                               toast.success(`🎉 You earned ${awardedBadges.length} new badge${awardedBadges.length > 1 ? 's' : ''}!`);
                               await loadProfileData();
@@ -558,7 +573,7 @@ export default function UserProfilePage() {
       {/* All Badges Modal */}
       <Dialog open={showAllBadges} onOpenChange={setShowAllBadges}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Award className="h-5 w-5 text-yellow-600" />
               {getUserDisplayName(viewedProfile)}&apos;s Achievements
@@ -569,14 +584,14 @@ export default function UserProfilePage() {
               badges={userBadges}
               showProgress={true}
               title=""
-              emptyMessage={`${getUserDisplayName(viewedProfile)} hasn&apos;t earned any badges yet`}
+              emptyMessage={`${getUserDisplayName(viewedProfile)} hasn't earned any badges yet`}
             />
           </div>
         </DialogContent>
       </Dialog>
       
       {/* Edit Profile Dialog */}
-      {currentProfile && isOwnProfile && (
+      {contextProfile && isOwnProfile && (
         <EditProfileDialog
           open={showEditProfile}
           onOpenChange={setShowEditProfile}
