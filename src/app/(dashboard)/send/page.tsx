@@ -345,7 +345,7 @@ export default function SendKarmaPage() {
             <div>
               <Label htmlFor="member">Select Teammate *</Label>
               <Select value={selectedMember} onValueChange={setSelectedMember}>
-                <SelectTrigger className="mt-1 text-left h-14">
+                <SelectTrigger className="mt-1 text-left h-14 py-3">
                   <SelectValue placeholder="Choose a teammate" />
                 </SelectTrigger>
                 <SelectContent>

@@ -56,6 +56,7 @@ import {
 import type { Database } from '@/lib/database.types';
 import { DepartmentManager } from '@/components/ui/department-manager';
 import { useUser } from '@/contexts/UserContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 type RewardRedemption = Database['public']['Tables']['reward_redemptions']['Row'];
 

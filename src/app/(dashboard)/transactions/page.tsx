@@ -357,7 +357,7 @@ export default function TransactionsPage() {
                       placeholder="Search messages or names..."
                       value={filters.search}
                       onChange={(e) => handleFilterChange('search', e.target.value)}
-                      className="pl-10"
+                      className="pl-10 h-10"
                     />
                   </div>
                 </div>
@@ -389,7 +389,7 @@ export default function TransactionsPage() {
                     value={filters.dateFilter} 
                     onValueChange={(value: DateFilter) => handleFilterChange('dateFilter', value)}
                   >
-                    <SelectTrigger className="mt-2">
+                    <SelectTrigger className="mt-2 h-10">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
