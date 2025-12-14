@@ -19,7 +19,7 @@ export function HeroSection() {
             </h1>
 
             <p className="text-base sm:text-lg text-muted-foreground max-w-lg mx-auto lg:mx-0 leading-relaxed">
-              Claimsy is where teams give karma, celebrate wins, and redeem rewards — all with simple workflows that
+              Claimsy is where teams give karma, celebrate wins, and redeem rewards - all with simple workflows that
               drive engagement.
             </p>
 
@@ -28,11 +28,12 @@ export function HeroSection() {
                 size="lg"
                 className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 px-6 sm:px-8"
               >
-              Get started — it&apos;s free
+              <a href="/login">Get started — it&apos;s free</a>
               </Button>
               <Button size="lg" variant="outline" className="w-full sm:w-auto group bg-transparent">
-                Explore features
+                
                 <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                <a href="#features">Explore features</a>
               </Button>
             </div>
           </div>
