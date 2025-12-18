@@ -41,6 +41,7 @@ import { getTransactionsByProfileClient, getTransactionsByWorkspaceClient } from
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount } from '@/lib/currency';
 import { useUser } from '@/contexts/UserContext';
+import { supabase } from '@/lib/supabase';
 
 type TransactionType = 'all' | 'sent' | 'received';
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
@@ -68,6 +69,7 @@ export default function TransactionsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [isFiltering, setIsFiltering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const prevFilterRef = useRef<FilterState | null>(null);
   
   // Separate pagination for each view
   const [pageYou, setPageYou] = useState(1);
@@ -91,7 +93,7 @@ export default function TransactionsPage() {
 
   const limit = 10;
   const observerTarget = useRef<HTMLDivElement>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout>();
+  const debounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   // Helper to get current view data
@@ -133,147 +135,67 @@ export default function TransactionsPage() {
       } else {
         setIsFiltering(true);
       }
-      
-      // Build filters array for Supabase query
-      const filters: Array<{
-        field: string;
-        operator: 'gte' | 'lte' | 'eq' | 'neq' | 'gt' | 'lt' | 'like' | 'in' | 'not_in';
-        value: unknown;
-      }> = [];
-      
-      // Add date range filters
-      if (filterState.dateFilter !== 'all') {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        let startDate: Date;
-        
-        switch (filterState.dateFilter) {
-          case 'today':
-            startDate = today;
-            filters.push({
-              field: 'created_at',
-              operator: 'gte' as const,
-              value: startDate.toISOString(),
-            });
-            break;
-          case 'week':
-            startDate = new Date(today);
-            startDate.setDate(startDate.getDate() - 7);
-            filters.push({
-              field: 'created_at',
-              operator: 'gte' as const,
-              value: startDate.toISOString(),
-            });
-            break;
-          case 'month':
-            startDate = new Date(today);
-            startDate.setMonth(startDate.getMonth() - 1);
-            filters.push({
-              field: 'created_at',
-              operator: 'gte' as const,
-              value: startDate.toISOString(),
-            });
-            break;
-          case 'custom':
-            if (filterState.customDateFrom) {
-              filters.push({
-                field: 'created_at',
-                operator: 'gte' as const,
-                value: new Date(filterState.customDateFrom).toISOString(),
-              });
-            }
-            if (filterState.customDateTo) {
-              const endDate = new Date(filterState.customDateTo);
-              endDate.setHours(23, 59, 59, 999);
-              filters.push({
-                field: 'created_at',
-                operator: 'lte' as const,
-                value: endDate.toISOString(),
-              });
-            }
-            break;
-        }
+
+      // Build query params for API
+      const params = new URLSearchParams({
+        page: pageNum.toString(),
+        limit: limit.toString(),
+        view: currentView,
+        type: filterState.type,
+        dateFilter: filterState.dateFilter,
+        search: filterState.search,
+      });
+
+      // Add custom date params if present
+      if (filterState.customDateFrom) {
+        params.append('customDateFrom', filterState.customDateFrom);
       }
-      
-      // Add transaction type filter for 'you' view only
-      if (currentView === 'you' && filterState.type !== 'all') {
-        filters.push({
-          field: filterState.type === 'sent' ? 'sender_profile_id' : 'receiver_profile_id',
-          operator: 'eq' as const,
-          value: currentProfile.id,
-        });
+      if (filterState.customDateTo) {
+        params.append('customDateTo', filterState.customDateTo);
       }
 
-      // Add search filter (server-side search)
-      if (filterState.search.trim()) {
-        // Search across message, emails, and names
-        // Note: Supabase doesn't support complex OR conditions easily in client, 
-        // so we'll do client-side filtering but the count reflects the db total
-        // We need to fetch more and filter, or do multiple requests
-        // For now, we'll keep the search server-side aware by fetching larger batches when searching
+      // Get auth token from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No auth session');
       }
 
-      let result;
-      
-      if (currentView === 'everyone') {
-        result = await getTransactionsByWorkspaceClient(currentProfile.workspace_id, {
-          page: pageNum,
-          limit,
-          sort: [{ field: 'created_at', order: 'desc' }],
-          filters: filters.length > 0 ? filters : undefined,
-        });
-      } else {
-        result = await getTransactionsByProfileClient(currentProfile.id, {
-          page: pageNum,
-          limit,
-          sort: [{ field: 'created_at', order: 'desc' }],
-          filters: filters.length > 0 ? filters : undefined,
-        });
+      // Call API endpoint
+      const response = await fetch(`/api/transactions?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
       }
-      
-      let filteredData = result.data || [];
-      let actualTotal = result.pagination.total;
-      
-      // Apply client-side search filter for display
-      if (filterState.search.trim()) {
-        const searchLower = filterState.search.toLowerCase();
-        const searchFilteredData = filteredData.filter(transaction =>
-          transaction.message?.toLowerCase().includes(searchLower) ||
-          transaction.sender_profile.email.toLowerCase().includes(searchLower) ||
-          transaction.receiver_profile.email.toLowerCase().includes(searchLower) ||
-          transaction.sender_profile.full_name?.toLowerCase().includes(searchLower) ||
-          transaction.receiver_profile.full_name?.toLowerCase().includes(searchLower)
-        );
-        
-        // For search, we need to calculate the total by fetching all matching records
-        // This is a limitation of client-side search - we show what's on this page
-        // The count reflects the total with date + type filters, but before search pagination
-        filteredData = searchFilteredData;
-        // Keep the server total for now - in a real app, you'd want full-text search
-        // For accurate search counts, consider implementing server-side full-text search
-      }
+
+      const result = await response.json();
 
       // Update the correct state based on view
       if (currentView === 'you') {
         if (isLoadMore) {
-          setTransactionsYou(prev => [...prev, ...filteredData]);
+          setTransactionsYou(prev => [...prev, ...(result.data || [])]);
         } else {
-          setTransactionsYou(filteredData);
+          setTransactionsYou(result.data || []);
         }
-        setTotalCountYou(actualTotal);
-        setTotalPagesYou(result.pagination.total_pages);
-        setHasNextYou(result.pagination.has_next);
-        setHasPrevYou(result.pagination.has_prev);
+        setTotalCountYou(result.pagination?.total || 0);
+        setTotalPagesYou(result.pagination?.total_pages || 1);
+        setHasNextYou(result.pagination?.has_next || false);
+        setHasPrevYou(result.pagination?.has_prev || false);
       } else {
         if (isLoadMore) {
-          setTransactionsEveryone(prev => [...prev, ...filteredData]);
+          setTransactionsEveryone(prev => [...prev, ...(result.data || [])]);
         } else {
-          setTransactionsEveryone(filteredData);
+          setTransactionsEveryone(result.data || []);
         }
-        setTotalCountEveryone(actualTotal);
-        setTotalPagesEveryone(result.pagination.total_pages);
-        setHasNextEveryone(result.pagination.has_next);
-        setHasPrevEveryone(result.pagination.has_prev);
+        setTotalCountEveryone(result.pagination?.total || 0);
+        setTotalPagesEveryone(result.pagination?.total_pages || 1);
+        setHasNextEveryone(result.pagination?.has_next || false);
+        setHasPrevEveryone(result.pagination?.has_prev || false);
       }
     } catch (err) {
       console.error('Failed to load transactions:', err);
@@ -285,22 +207,20 @@ export default function TransactionsPage() {
     }
   }, [currentProfile, limit]);
 
-  // Initial load on mount - load both views
-  useEffect(() => {
-    if (currentProfile && transactionsYou.length === 0 && transactionsEveryone.length === 0) {
-      setLoading(true);
-      loadTransactions(1, filters, 'you', false);
-      loadTransactions(1, filters, 'everyone', false);
-    }
-  }, [currentProfile, loadTransactions, filters]);
-
-  // Load when filters change
+  // Load when filters change or view changes
   useEffect(() => {
     if (currentProfile) {
-      loadTransactions(1, filters, 'you', false);
-      loadTransactions(1, filters, 'everyone', false);
+      // Check if filters actually changed to avoid unnecessary reloads
+      if (prevFilterRef.current && JSON.stringify(prevFilterRef.current) === JSON.stringify(filters)) {
+        // Filters haven't changed, don't reload
+        return;
+      }
+      
+      prevFilterRef.current = filters;
+      setLoading(true);
+      loadTransactions(1, filters, view, false);
     }
-  }, [filters, currentProfile, loadTransactions]);
+  }, [filters, view, currentProfile, loadTransactions, limit]);
 
   // Infinite scroll observer
   useEffect(() => {

@@ -1,9 +1,10 @@
-// Permission checking utilities for role-based access control
+// Client-safe permission checking utilities - NO server-side imports
+// Safe to use in client components, contains only role-checking logic
 
 import { supabase } from './supabase';
 import { UserRole, Profile, Workspace } from './supabase-types';
 
-// Get current user's profile
+// Get current user's profile (client-side)
 export async function getCurrentProfile(): Promise<Profile | null> {
   const {
     data: { user },

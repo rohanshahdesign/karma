@@ -9,7 +9,7 @@ import {
   getSlackMembershipsByWorkspace
 } from '../../../../lib/slack';
 import { getProfileByAuthUserId } from '../../../../lib/database';
-import { isAdmin } from '../../../../lib/permissions';
+import { isAdmin } from '../../../../lib/permissions-client';
 import { SlackMembership } from '../../../../lib/supabase-types';
 
 // GET /api/workspaces/slack - Get Slack association info for current workspace

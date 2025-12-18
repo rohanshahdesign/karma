@@ -283,10 +283,10 @@ export async function getWorkspaceStats(
   return data;
 }
 
-export async function getCurrentWorkspace(): Promise<Workspace | null> {
+export async function getCurrentWorkspaceByToken(token: string): Promise<Workspace | null> {
   try {
-    const { getCurrentProfile } = await import('./permissions');
-    const profile = await getCurrentProfile();
+    const { getCurrentProfileServer } = await import('./permissions-server');
+    const profile = await getCurrentProfileServer(token);
     if (!profile) return null;
     
     return await getWorkspace(profile.workspace_id);
