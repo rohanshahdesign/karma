@@ -5,25 +5,59 @@ import { supabase } from './supabase';
 import { UserRole, Profile, Workspace } from './supabase-types';
 
 // Get current user's profile (client-side)
+// In multi-workspace mode, fetches the profile for the user's current workspace preference
 export async function getCurrentProfile(): Promise<Profile | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('auth_user_id', user.id)
-    .maybeSingle();
+  try {
+    // First, try to get user's current workspace preference
+    const { data: userPref } = await supabase
+      .from('user_preferences')
+      .select('current_workspace_id')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
 
-  // Return null if no profile exists (don't throw error)
-  if (error && error.code !== 'PGRST116') {
-    console.error('Error fetching profile:', error);
+    let workspaceId: string | null = null;
+
+    if (userPref?.current_workspace_id) {
+      workspaceId = userPref.current_workspace_id;
+    } else {
+      // If no preference, get user's first workspace (prioritize super_admin)
+      const { data: workspaces } = await supabase.rpc('get_user_workspaces');
+      
+      if (workspaces && workspaces.length > 0) {
+        // Prefer super_admin workspace, otherwise use first
+        const superAdminWs = workspaces.find((w: { user_role: string; workspace_id: string }) => w.user_role === 'super_admin');
+        workspaceId = superAdminWs?.workspace_id || workspaces[0].workspace_id;
+      }
+    }
+
+    if (!workspaceId) {
+      return null; // User has no workspaces
+    }
+
+    // Get the profile for the current workspace
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('auth_user_id', user.id)
+      .eq('workspace_id', workspaceId)
+      .maybeSingle();
+
+    // Return null if no profile exists (don't throw error)
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching profile:', error);
+      return null;
+    }
+
+    return profile;
+  } catch (err) {
+    console.error('Error in getCurrentProfile:', err);
     return null;
   }
-
-  return profile;
 }
 
 // Get current user's workspace info

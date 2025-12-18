@@ -29,6 +29,7 @@ interface UserProfile {
   job_title: string;
   bio: string;
   portfolio_url: string;
+  department: string;
 }
 
 export default function WorkspaceSettingsForm() {
@@ -46,7 +47,8 @@ export default function WorkspaceSettingsForm() {
     username: '',
     job_title: '',
     bio: '',
-    portfolio_url: ''
+    portfolio_url: '',
+    department: ''
   });
   const [departments, setDepartments] = useState<string[]>(DEFAULT_DEPARTMENTS);
   const [loading, setLoading] = useState(false);
@@ -147,13 +149,15 @@ export default function WorkspaceSettingsForm() {
           p_job_title: profile.job_title.trim() || null,
           p_bio: profile.bio.trim() || null,
           p_portfolio_url: profile.portfolio_url.trim() || null,
-          p_departments: departments
+          p_departments: departments,
+          p_user_department: profile.department.trim() || null
         }
       );
       
       if (rpcError) throw rpcError;
 
-      router.push('/onboarding/invite');
+      // Redirect to home instead of onboarding for multi-workspace support
+      router.push('/home');
     } catch (err: unknown) {
       console.error('Workspace creation error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -233,6 +237,24 @@ export default function WorkspaceSettingsForm() {
                 placeholder="e.g. john_doe"
                 required
               />
+
+              <div>
+                <Label htmlFor="department">Department *</Label>
+                <select
+                  id="department"
+                  value={profile.department}
+                  onChange={(e) => updateProfile('department', e.target.value)}
+                  required
+                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select your department</option>
+                  {departments.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div>
                 <Label htmlFor="job_title">Job Title</Label>

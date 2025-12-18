@@ -164,7 +164,7 @@ export default function UserProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [username, contextProfile, isContextLoading]);
+  }, [username, contextProfile, contextProfile?.workspace_id, isContextLoading]);
 
   const handleProfileUpdated = useCallback((updatedProfile: Profile) => {
     setViewedProfile(updatedProfile);
@@ -259,12 +259,12 @@ export default function UserProfilePage() {
               <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
                 {/* Avatar and Basic Info */}
                 <div className="flex flex-col md:flex-row items-center gap-4">
-                  <Avatar className="w-24 h-24">
-                    <AvatarImage src={viewedProfile.avatar_url || undefined} alt={viewedProfile.full_name || viewedProfile.email} />
-                    <AvatarFallback className="text-2xl">
-                      {getUserDisplayName(viewedProfile).charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar 
+                    user={viewedProfile} 
+                    size="xl"
+                    clickable={false}
+                    className="w-24 h-24"
+                  />
                   
                   <div className="text-center md:text-left">
                     <h1 className="text-3xl font-bold text-gray-900">

@@ -11,11 +11,13 @@ interface UserAvatarProps {
     full_name?: string | null;
     avatar_url?: string | null;
     email: string;
+    auth_user_id?: string;
   };
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   clickable?: boolean;
   onClick?: () => void;
+  workspaceId?: string;
 }
 
 const sizeClasses = {
@@ -25,8 +27,10 @@ const sizeClasses = {
   xl: "h-12 w-12 text-lg",
 };
 
-export function UserAvatar({ user, size = 'md', className, clickable = true, onClick }: UserAvatarProps) {
+export function UserAvatar({ user, size = 'md', className, clickable = true, onClick, workspaceId }: UserAvatarProps) {
   const router = useRouter();
+  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(user.avatar_url || null);
+  const [tried, setTried] = React.useState(false);
   
   const getInitials = React.useCallback(() => {
     if (user.full_name) {
@@ -51,13 +55,21 @@ export function UserAvatar({ user, size = 'md', className, clickable = true, onC
     }
   }, [onClick, clickable, user.username, router]);
 
+  const handleImageError = React.useCallback(() => {
+    // If workspace picture fails to load, fallback to user's personal picture (avatar_url from Google)
+    if (avatarUrl && user.avatar_url && avatarUrl !== user.avatar_url) {
+      setAvatarUrl(user.avatar_url);
+    }
+  }, [avatarUrl, user.avatar_url]);
+
   const avatarElement = (
     <Avatar className={cn(sizeClasses[size], className)}>
-      {user.avatar_url && (
+      {avatarUrl && (
         <AvatarImage 
-          src={user.avatar_url} 
+          src={avatarUrl} 
           alt={user.full_name || user.email}
           className="object-cover"
+          onError={handleImageError}
         />
       )}
       <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-medium">
