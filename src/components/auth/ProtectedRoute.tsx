@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { hasRole } from '../../lib/permissions';
+import { hasRole } from '../../lib/permissions-client';
 import { UserRole } from '../../lib/types';
 import { useUser } from '@/contexts/UserContext';
 

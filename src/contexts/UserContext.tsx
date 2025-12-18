@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Profile } from '@/lib/supabase-types';
-import { getCurrentProfile } from '@/lib/permissions';
+import { getCurrentProfile } from '@/lib/permissions-client';
 import { supabase } from '@/lib/supabase';
 
 interface UserContextType {

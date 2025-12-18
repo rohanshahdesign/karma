@@ -10,9 +10,10 @@ import {
   createNotFoundResponse,
 } from '../../../lib/api-utils';
 import {
-  getCurrentWorkspace,
+  getWorkspace,
   createWorkspaceWithOwner,
   getPendingUserSafe,
+  getProfileByAuthUserIdSafe,
 } from '../../../lib/database';
 import { CreateWorkspaceInput } from '../../../lib/types';
 
@@ -22,7 +23,7 @@ export const GET = withErrorHandling(
     const { profile } = req.user;
 
     try {
-      const workspace = await getCurrentWorkspace();
+      const workspace = await getWorkspace(profile.workspace_id);
       if (!workspace) {
         return createNotFoundResponse('Workspace');
       }
@@ -88,9 +89,9 @@ export const POST = withErrorHandling(
         p_avatar_url: avatarUrl,
       });
 
-      // Get the created workspace
-      const workspace = await getCurrentWorkspace();
-      const updatedProfile = await getCurrentProfile();
+      // Get the created workspace and updated profile
+      const updatedProfile = await getProfileByAuthUserIdSafe(req.user.id);
+      const workspace = updatedProfile ? await getWorkspace(updatedProfile.workspace_id) : null;
 
       return createSuccessResponse(
         {
@@ -113,10 +114,4 @@ function generateSlug(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .substring(0, 50);
-}
-
-// Helper function to get current profile (imported from permissions)
-async function getCurrentProfile() {
-  const { getCurrentProfile } = await import('../../../lib/permissions');
-  return getCurrentProfile();
 }

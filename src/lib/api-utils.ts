@@ -2,7 +2,7 @@
 // Provides common functionality for API routes
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentProfile } from './permissions';
+import { getCurrentProfileServer } from './permissions-server';
 import { HTTP_STATUS, ERROR_CODES, ApiError } from './api-types';
 import { ApiResponse, PaginatedResponse } from './types';
 import { DatabaseError } from './database';
@@ -55,15 +55,33 @@ export interface AuthenticatedJoinRequest extends NextRequest {
   supabase: typeof supabaseServer;
 }
 
-export async function getAuthenticatedUser(): Promise<{
+export async function getAuthenticatedUser(req?: NextRequest): Promise<{
   id: string;
   email: string;
   profile: Profile;
 }> {
   try {
-    const profile = await getCurrentProfile();
+    // Get token from request header if available
+    let token: string | null = null;
+    if (req) {
+      const authorization = req.headers.get('authorization');
+      if (authorization?.startsWith('Bearer ')) {
+        token = authorization.replace('Bearer ', '');
+      }
+    }
+
+    if (!token) {
+      const error = new Error('No authorization token provided');
+      Object.assign(error, {
+        code: ERROR_CODES.UNAUTHORIZED,
+        status: HTTP_STATUS.UNAUTHORIZED,
+      });
+      throw error;
+    }
+
+    const profile = await getCurrentProfileServer(token);
     if (!profile) {
-      const error = new Error('User not authenticated');
+      const error = new Error('User profile not found');
       Object.assign(error, {
         code: ERROR_CODES.UNAUTHORIZED,
         status: HTTP_STATUS.UNAUTHORIZED,
@@ -386,7 +404,7 @@ export function withAuth(
   ): Promise<NextResponse> => {
     const resolvedContext = ensureRouteContext(context);
     try {
-      const user = await getAuthenticatedUser();
+      const user = await getAuthenticatedUser(req);
       (req as AuthenticatedRequest).user = user;
       return await handler(req as AuthenticatedRequest, resolvedContext);
     } catch (error) {

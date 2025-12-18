@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Slack } from "lucide-react"
+import Link from "next/link"
 
 export function HeroSection() {
   return (
@@ -24,17 +25,20 @@ export function HeroSection() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
-              <Button
-                size="lg"
-                className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 px-6 sm:px-8"
-              >
-              <a href="/login">Get started — it&apos;s free</a>
-              </Button>
-              <Button size="lg" variant="outline" className="w-full sm:w-auto group bg-transparent">
-                
-                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                <a href="#features">Explore features</a>
-              </Button>
+              <Link href="/login">
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90 px-6 sm:px-8"
+                >
+                Get started — it&apos;s free
+                </Button>
+              </Link>
+              <Link href="#features">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto cursor-pointer group bg-transparent">
+                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                  Explore features
+                </Button>
+              </Link>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,6 +41,7 @@ import { getTransactionsByProfileClient, getTransactionsByWorkspaceClient } from
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount } from '@/lib/currency';
 import { useUser } from '@/contexts/UserContext';
+import { supabase } from '@/lib/supabase';
 
 type TransactionType = 'all' | 'sent' | 'received';
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
@@ -57,23 +58,51 @@ interface FilterState {
 export default function TransactionsPage() {
   const { currencyName } = useCurrency();
   const { profile: currentProfile } = useUser();
-  const [transactions, setTransactions] = useState<TransactionWithProfiles[]>([]);
+  
+  // Separate state for each view
+  const [transactionsYou, setTransactionsYou] = useState<TransactionWithProfiles[]>([]);
+  const [transactionsEveryone, setTransactionsEveryone] = useState<TransactionWithProfiles[]>([]);
+  const [totalCountYou, setTotalCountYou] = useState(0);
+  const [totalCountEveryone, setTotalCountEveryone] = useState(0);
+  
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isFiltering, setIsFiltering] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [hasNext, setHasNext] = useState(false);
-  const [hasPrev, setHasPrev] = useState(false);
+  const prevFilterRef = useRef<FilterState | null>(null);
+  
+  // Separate pagination for each view
+  const [pageYou, setPageYou] = useState(1);
+  const [pageEveryone, setPageEveryone] = useState(1);
+  const [totalPagesYou, setTotalPagesYou] = useState(1);
+  const [totalPagesEveryone, setTotalPagesEveryone] = useState(1);
+  const [hasNextYou, setHasNextYou] = useState(false);
+  const [hasNextEveryone, setHasNextEveryone] = useState(false);
+  const [hasPrevYou, setHasPrevYou] = useState(false);
+  const [hasPrevEveryone, setHasPrevEveryone] = useState(false);
+  
   const [view, setView] = useState<ViewType>('you');
   
+  // Separate state for search input and actual search filter
+  const [searchInput, setSearchInput] = useState('');
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     type: 'all',
     dateFilter: 'all',
   });
 
-  const limit = 20;
+  const limit = 10;
+  const observerTarget = useRef<HTMLDivElement>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  
+  // Helper to get current view data
+  const transactions = view === 'you' ? transactionsYou : transactionsEveryone;
+  const totalCount = view === 'you' ? totalCountYou : totalCountEveryone;
+  const page = view === 'you' ? pageYou : pageEveryone;
+  const totalPages = view === 'you' ? totalPagesYou : totalPagesEveryone;
+  const hasNext = view === 'you' ? hasNextYou : hasNextEveryone;
+  const hasPrev = view === 'you' ? hasPrevYou : hasPrevEveryone;
 
   // Update URL when view changes
   useEffect(() => {
@@ -88,7 +117,6 @@ export default function TransactionsPage() {
 
   const updateView = (newView: ViewType) => {
     setView(newView);
-    setPage(1);
     const url = new URL(window.location.href);
     if (newView === 'everyone') {
       url.searchParams.set('view', 'everyone');
@@ -96,115 +124,177 @@ export default function TransactionsPage() {
       url.searchParams.delete('view');
     }
     window.history.pushState({}, '', url);
+    
+    // Load transactions for the new view with current filters
+    loadTransactions(1, filters, newView, false);
   };
 
-  const loadTransactions = useCallback(async () => {
+  const loadTransactions = useCallback(async (pageNum: number, filterState: FilterState, currentView: ViewType, isLoadMore: boolean = false) => {
     if (!currentProfile) return;
 
     try {
-      setRefreshing(true);
-      if (transactions.length === 0) setLoading(true); // Initial load
-      
-      // Build query config based on filters
-      const queryConfig = {
-        page,
-        limit,
-        sort: [{ field: 'created_at', order: 'desc' as const }],
-      };
-
-      let result;
-      
-      if (view === 'everyone') {
-        result = await getTransactionsByWorkspaceClient(currentProfile.workspace_id, queryConfig);
+      if (isLoadMore) {
+        setIsLoadingMore(true);
       } else {
-        result = await getTransactionsByProfileClient(currentProfile.id, queryConfig);
-      }
-      
-      let filteredData = result.data || [];
-      
-      // Apply client-side filters
-      if (view === 'you' && filters.type !== 'all') {
-        filteredData = filteredData.filter(transaction => 
-          filters.type === 'sent' 
-            ? transaction.sender_profile_id === currentProfile.id
-            : transaction.receiver_profile_id === currentProfile.id
-        );
+        setIsFiltering(true);
       }
 
-      if (filters.search.trim()) {
-        const searchLower = filters.search.toLowerCase();
-        filteredData = filteredData.filter(transaction =>
-          transaction.message?.toLowerCase().includes(searchLower) ||
-          transaction.sender_profile.email.toLowerCase().includes(searchLower) ||
-          transaction.receiver_profile.email.toLowerCase().includes(searchLower) ||
-          transaction.sender_profile.full_name?.toLowerCase().includes(searchLower) ||
-          transaction.receiver_profile.full_name?.toLowerCase().includes(searchLower)
-        );
+      // Build query params for API
+      const params = new URLSearchParams({
+        page: pageNum.toString(),
+        limit: limit.toString(),
+        view: currentView,
+        type: filterState.type,
+        dateFilter: filterState.dateFilter,
+        search: filterState.search,
+      });
+
+      // Add custom date params if present
+      if (filterState.customDateFrom) {
+        params.append('customDateFrom', filterState.customDateFrom);
+      }
+      if (filterState.customDateTo) {
+        params.append('customDateTo', filterState.customDateTo);
       }
 
-      // Apply date filters
-      if (filters.dateFilter !== 'all') {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        filteredData = filteredData.filter(transaction => {
-          const transactionDate = new Date(transaction.created_at);
-          
-          switch (filters.dateFilter) {
-            case 'today':
-              return transactionDate >= today;
-            case 'week':
-              const weekAgo = new Date(today);
-              weekAgo.setDate(weekAgo.getDate() - 7);
-              return transactionDate >= weekAgo;
-            case 'month':
-              const monthAgo = new Date(today);
-              monthAgo.setMonth(monthAgo.getMonth() - 1);
-              return transactionDate >= monthAgo;
-            case 'custom':
-              if (filters.customDateFrom) {
-                const fromDate = new Date(filters.customDateFrom);
-                if (transactionDate < fromDate) return false;
-              }
-              if (filters.customDateTo) {
-                const toDate = new Date(filters.customDateTo);
-                toDate.setHours(23, 59, 59, 999);
-                if (transactionDate > toDate) return false;
-              }
-              return true;
-            default:
-              return true;
-          }
-        });
+      // Get auth token from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No auth session');
       }
 
-      setTransactions(filteredData);
-      setTotalPages(result.pagination.total_pages);
-      setHasNext(result.pagination.has_next);
-      setHasPrev(result.pagination.has_prev);
+      // Call API endpoint
+      const response = await fetch(`/api/transactions?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      // Update the correct state based on view
+      if (currentView === 'you') {
+        if (isLoadMore) {
+          setTransactionsYou(prev => [...prev, ...(result.data || [])]);
+        } else {
+          setTransactionsYou(result.data || []);
+        }
+        setTotalCountYou(result.pagination?.total || 0);
+        setTotalPagesYou(result.pagination?.total_pages || 1);
+        setHasNextYou(result.pagination?.has_next || false);
+        setHasPrevYou(result.pagination?.has_prev || false);
+      } else {
+        if (isLoadMore) {
+          setTransactionsEveryone(prev => [...prev, ...(result.data || [])]);
+        } else {
+          setTransactionsEveryone(result.data || []);
+        }
+        setTotalCountEveryone(result.pagination?.total || 0);
+        setTotalPagesEveryone(result.pagination?.total_pages || 1);
+        setHasNextEveryone(result.pagination?.has_next || false);
+        setHasPrevEveryone(result.pagination?.has_prev || false);
+      }
     } catch (err) {
       console.error('Failed to load transactions:', err);
       setError('Failed to load transactions');
     } finally {
       setLoading(false);
-      setRefreshing(false);
+      setIsFiltering(false);
+      setIsLoadingMore(false);
     }
-  }, [currentProfile, page, filters, limit, view, transactions.length]);
+  }, [currentProfile, limit]);
 
+  // Load when filters change or view changes
   useEffect(() => {
     if (currentProfile) {
-      loadTransactions();
+      // Check if filters actually changed to avoid unnecessary reloads
+      if (prevFilterRef.current && JSON.stringify(prevFilterRef.current) === JSON.stringify(filters)) {
+        // Filters haven't changed, don't reload
+        return;
+      }
+      
+      prevFilterRef.current = filters;
+      setLoading(true);
+      loadTransactions(1, filters, view, false);
     }
-  }, [currentProfile, loadTransactions]);
+  }, [filters, view, currentProfile, loadTransactions, limit]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasNext && !isLoadingMore && !isFiltering && transactions.length > 0) {
+          const newPage = page + 1;
+          if (view === 'you') {
+            setPageYou(newPage);
+          } else {
+            setPageEveryone(newPage);
+          }
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasNext, isLoadingMore, isFiltering, transactions.length, page, view]);
+
+  // Load more when page changes (for infinite scroll)
+  useEffect(() => {
+    if (page > 1 && currentProfile) {
+      loadTransactions(page, filters, view, true);
+    }
+  }, [page, currentProfile, loadTransactions, filters, view]);
 
 
   const handleRefresh = () => {
-    loadTransactions();
+    if (view === 'you') {
+      setPageYou(1);
+      setTransactionsYou([]);
+    } else {
+      setPageEveryone(1);
+      setTransactionsEveryone([]);
+    }
+    loadTransactions(1, filters, view, false);
   };
 
   const handleFilterChange = (key: keyof FilterState, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    setPage(1); // Reset to first page when filtering
+    if (key === 'search') {
+      // Update the search input state immediately for UI responsiveness
+      setSearchInput(value);
+      
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      
+      // Debounce the actual filter update
+      debounceTimerRef.current = setTimeout(() => {
+        setFilters(prev => ({ ...prev, search: value }));
+        // Reset to page 1 when search changes for accurate results
+        if (view === 'you') {
+          setPageYou(1);
+        } else {
+          setPageEveryone(1);
+        }
+      }, 500);
+    } else {
+      // Other filters apply immediately
+      setFilters(prev => ({ ...prev, [key]: value }));
+      if (view === 'you') {
+        setPageYou(1);
+      } else {
+        setPageEveryone(1);
+      }
+    }
   };
 
 
@@ -238,7 +328,7 @@ export default function TransactionsPage() {
             );
         } else if (transaction.receiver_profile_id === currentProfile?.id) {
             return (
-                <Badge variant="default" className="text-xs">
+                <Badge variant="default" className="text-xs bg-green-100 text-green-800">
                     Received
                 </Badge>
             );
@@ -252,7 +342,7 @@ export default function TransactionsPage() {
     return (
       <Badge 
         variant={isSent ? "destructive" : "default"} 
-        className={`text-xs ${isSent ? 'bg-red-100 text-red-800 hover:bg-red-100' : ''}`}
+        className={`text-xs ${isSent ? 'bg-red-100 text-red-800 hover:bg-red-100' : 'bg-green-100 text-green-800 hover:bg-green-100'}`}
       >
         {isSent ? 'Sent' : 'Received'}
       </Badge>
@@ -292,7 +382,7 @@ export default function TransactionsPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16">
               <p className="text-red-600 mb-4">{error}</p>
-              <Button onClick={() => loadTransactions()} variant="outline">
+              <Button onClick={() => loadTransactions(1, filters, view, false)} variant="outline">
                 Try Again
               </Button>
             </CardContent>
@@ -354,8 +444,8 @@ export default function TransactionsPage() {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
                       id="search"
-                      placeholder="Search messages or names..."
-                      value={filters.search}
+                      placeholder="Search messages"
+                      value={searchInput}
                       onChange={(e) => handleFilterChange('search', e.target.value)}
                       className="pl-10 h-10"
                     />
@@ -370,7 +460,7 @@ export default function TransactionsPage() {
                       value={filters.type} 
                       onValueChange={(value: TransactionType) => handleFilterChange('type', value)}
                     >
-                      <SelectTrigger className="mt-2">
+                      <SelectTrigger className="mt-2 h-10">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -431,7 +521,7 @@ export default function TransactionsPage() {
                 <div>
                   <CardTitle>Transactions</CardTitle>
                   <CardDescription>
-                    {transactions.length} transaction{transactions.length !== 1 ? 's' : ''} found
+                    {totalCount} transaction{totalCount !== 1 ? 's' : ''} found
                   </CardDescription>
                 </div>
               </div>
@@ -446,7 +536,16 @@ export default function TransactionsPage() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 relative">
+                  {/* Filtering overlay */}
+                  {isFiltering && (
+                    <div className="absolute inset-0 bg-white/50 flex items-center justify-center rounded-lg z-10">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                        <p className="text-sm text-gray-600">Filtering transactions...</p>
+                      </div>
+                    </div>
+                  )}
                   {transactions.map((transaction) => {
                     const isSent = transaction.sender_profile_id === currentProfile?.id;
                     const isReceived = transaction.receiver_profile_id === currentProfile?.id;
@@ -463,88 +562,77 @@ export default function TransactionsPage() {
                     const amountPrefix = isThirdParty ? '' : (isSent ? '-' : '+');
 
                     return (
-                      <div key={transaction.id} className="flex items-center space-x-4 p-4 border border-[#ebebeb] rounded-lg">
-                        {/* Icon */}
-                        <div className="flex-shrink-0">
-                          {getTransactionIcon(transaction)}
-                        </div>
+                      <div key={transaction.id} className="group relative px-3 py-3 md:px-4 md:py-3 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50/50 transition-all">
+                        <div className="flex gap-3 md:gap-4">
+                          {/* Avatar with Transaction Icon Overlay */}
+                          <div className="flex-shrink-0 relative">
+                            <UserAvatar user={displayUser} size="md" />
+                            <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 border border-gray-100 shadow-sm">
+                              {getTransactionIcon(transaction)}
+                            </div>
+                          </div>
 
-                        {/* Avatar */}
-                        <UserAvatar user={displayUser} size="lg" />
-
-                        {/* Transaction Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
+                          {/* Main Content */}
+                          <div className="flex-1 min-w-0">
+                            {/* Primary Row: Name + Amount */}
+                            <div className="flex items-baseline justify-between gap-2 mb-1">
+                              <p className="text-sm font-semibold text-gray-900 truncate">
                                 {isThirdParty ? (
                                     <>
-                                        <span className="font-semibold">{getUserDisplayName(transaction.sender_profile)}</span>
-                                        {' '}sent to{' '}
-                                        <span className="font-semibold">{getUserDisplayName(transaction.receiver_profile)}</span>
+                                        <span>{getUserDisplayName(transaction.sender_profile)}</span>
+                                        <span className="font-normal text-gray-500"> → </span>
+                                        <span>{getUserDisplayName(transaction.receiver_profile)}</span>
                                     </>
                                 ) : (
                                     <>
                                         {isSent ? 'Sent to' : 'Received from'} {' '}
-                                        <span className="font-semibold">
-                                            {getUserDisplayName(displayUser)}
-                                        </span>
+                                        <span>{getUserDisplayName(displayUser)}</span>
                                     </>
                                 )}
                               </p>
+                              <p className={`text-sm font-bold whitespace-nowrap ${amountClass}`}>
+                                {amountPrefix}{formatCurrencyAmount(transaction.amount, currencyName)}
+                              </p>
+                            </div>
+
+                            {/* Secondary Row: Date + Badge */}
+                            <div className="flex items-center justify-between gap-2">
                               <p className="text-xs text-gray-500">
                                 {formatDate(transaction.created_at)}
                               </p>
-                            </div>
-                            <div className="text-right">
-                              <p className={`text-lg font-bold ${amountClass}`}>
-                                {amountPrefix}{formatCurrencyAmount(transaction.amount, currencyName)}
-                              </p>
-                              {getTransactionBadge(transaction)}
+                              <div className="flex items-center gap-1">
+                                {getTransactionBadge(transaction)}
+                              </div>
                             </div>
                           </div>
-                          
-                          {transaction.message && (
-                            <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-                              <MessageSquare className="h-3 w-3 inline mr-1 text-gray-400" />
-                              {transaction.message}
-                            </div>
-                          )}
                         </div>
+
+                        {/* Message - Below main content if present */}
+                        {transaction.message && (
+                          <div className="mt-2.5 ml-10 md:ml-12 p-2.5 bg-gray-50 rounded border border-gray-100 text-xs text-gray-700 flex items-start gap-2">
+                            <MessageSquare className="h-3 w-3 flex-shrink-0 text-gray-400 mt-0.5" />
+                            <span className="line-clamp-2">{transaction.message}</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
-                </div>
-              )}
 
-              {/* Pagination */}
-              {transactions.length > 0 && (totalPages > 1) && (
-                <div className="flex items-center justify-between mt-6 pt-4 border-t border-[#ebebeb]">
-                  <p className="text-sm text-gray-700">
-                    Page {page} of {totalPages}
-                  </p>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(p => p - 1)}
-                      disabled={!hasPrev}
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(p => p + 1)}
-                      disabled={!hasNext}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
+                  {/* Infinite scroll observer target */}
+                  <div ref={observerTarget} className="py-4 text-center">
+                    {isLoadingMore && (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                        <p className="text-sm text-gray-600">Loading more transactions...</p>
+                      </div>
+                    )}
+                    {!hasNext && transactions.length > 0 && (
+                      <p className="text-sm text-gray-500">No more transactions to load</p>
+                    )}
                   </div>
                 </div>
               )}
+
             </CardContent>
           </Card>
         </div>

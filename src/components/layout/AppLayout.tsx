@@ -15,9 +15,11 @@ import {
   User,
   ChevronUp,
 } from 'lucide-react';
-import { getCurrentProfile } from '@/lib/permissions';
-import { Profile, Workspace } from '@/lib/supabase-types';
+import { useUser } from '@/contexts/UserContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { supabase } from '@/lib/supabase';
+import { getWorkspaceClient } from '@/lib/database-client';
+import { Workspace } from '@/lib/supabase-types';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -73,36 +75,29 @@ const navItems: NavItem[] = [
 
 export default function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const pathname = usePathname();
   const router = useRouter();
+  
+  // Get profile and auth status from context
+  const { profile: currentProfile, isAuthenticated, isLoading } = useUser();
+  const { workspaceSettings } = useWorkspace();
 
+  // Redirect to login if not authenticated
   useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const profile = await getCurrentProfile();
-        setCurrentProfile(profile);
-        
-        // Load workspace data
-        if (profile) {
-          const { data: workspaceData, error } = await supabase
-            .from('workspaces')
-            .select('*')
-            .eq('id', profile.workspace_id)
-            .single();
-          
-          if (!error && workspaceData) {
-            setWorkspace(workspaceData);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load profile:', error);
-        router.push('/login');
-      }
-    };
-    loadProfile();
-  }, [router]);
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // Load workspace data when profile is available
+  useEffect(() => {
+    if (currentProfile?.workspace_id) {
+      getWorkspaceClient(currentProfile.workspace_id)
+        .then(setWorkspace)
+        .catch((error) => console.error('Failed to load workspace:', error));
+    }
+  }, [currentProfile?.workspace_id]);
 
   const isActive = (href: string) => {
     return pathname === href || (href !== '/home' && pathname.startsWith(href));
@@ -131,7 +126,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   </span>
                 </div>
                 <span className="ml-3 text-xl font-semibold text-gray-900">
-                  {workspace?.name || 'Karma'}
+                  {workspace?.name || 'Workspace'}
                 </span>
               </div>
             </div>
@@ -237,7 +232,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       </span>
                     </div>
                     <span className="ml-3 text-xl font-semibold text-gray-900">
-                      {workspace?.name || 'Karma'}
+                      {workspace?.name || 'Workspace'}
                     </span>
                   </div>
                 </div>
@@ -321,7 +316,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               </span>
             </div>
             <span className="ml-2 text-lg font-semibold text-gray-900">
-              {workspace?.name || 'Karma'}
+              {workspace?.name || 'Workspace'}
             </span>
           </div>
           <div className="w-8" /> {/* Spacer for centering */}
