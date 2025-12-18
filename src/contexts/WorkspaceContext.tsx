@@ -10,10 +10,12 @@ export interface WorkspaceSettings {
   min_transaction_amount: number;
   max_transaction_amount: number;
   currency_name: string;
+  departments?: string[];
 }
 
 interface WorkspaceContextType {
   workspaceSettings: WorkspaceSettings | null;
+  currencyName: string;
   isLoading: boolean;
   error: Error | null;
   refreshWorkspaceSettings: () => Promise<void>;
@@ -77,6 +79,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     <WorkspaceContext.Provider
       value={{
         workspaceSettings,
+        currencyName: workspaceSettings?.currency_name || 'Karma',
         isLoading,
         error,
         refreshWorkspaceSettings,

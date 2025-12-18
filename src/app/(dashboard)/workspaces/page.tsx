@@ -57,6 +57,8 @@ import type { Database } from '@/lib/database.types';
 import { DepartmentManager } from '@/components/ui/department-manager';
 import { useUser } from '@/contexts/UserContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import CreateWorkspaceForm from '@/components/forms/CreateWorkspaceForm';
+import EditWorkspaceForm from '@/components/forms/EditWorkspaceForm';
 
 type RewardRedemption = Database['public']['Tables']['reward_redemptions']['Row'];
 
@@ -64,6 +66,7 @@ interface WorkspaceWithMembers extends Workspace {
   members: WorkspaceMember[];
   role: 'super_admin' | 'admin' | 'employee';
   invite_code?: string;
+  logo_url?: string;
 }
 
 export default function WorkspacesPage() {
@@ -80,7 +83,10 @@ export default function WorkspacesPage() {
     daily_limit_percentage?: number;
     currency_name?: string;
     departments?: string[];
+    logo_url?: string;
   }>({});
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [selectedRewardTags, setSelectedRewardTags] = useState<string[]>([]);
   const [rewards, setRewards] = useState<RewardWithTags[]>([]);
   const [rewardCategories, setRewardCategories] = useState<string[]>([]);
@@ -310,8 +316,24 @@ export default function WorkspacesPage() {
       daily_limit_percentage: workspace.daily_limit_percentage,
       currency_name: workspace.currency_name,
       departments: Array.isArray(departments) ? departments : ['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR'],
+      logo_url: workspace.logo_url || undefined,
     });
+    setLogoFile(null);
+    setLogoPreview(workspace.logo_url || null);
     setEditingSettings(true);
+  };
+
+  const handleLogoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSaveSettings = async (workspaceId: string) => {
@@ -608,7 +630,7 @@ export default function WorkspacesPage() {
                 Create Workspace
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle>Create New Workspace</DialogTitle>
                 <DialogDescription>
@@ -617,38 +639,16 @@ export default function WorkspacesPage() {
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleCreateWorkspace} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2 space-y-2">
-                    <Label htmlFor="name">Workspace Name</Label>
-                    <Input
-                      id="name"
-                      value={newWorkspaceData.name ?? ''}
-                      onChange={(e) =>
-                        setNewWorkspaceData({
-                          ...newWorkspaceData,
-                          name: e.target.value,
-                        })
-                      }
-                      placeholder="My Company Workspace"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {error && <div className="text-red-600 text-sm">{error}</div>}
-
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    className="bg-[#F5F5F5] border-none shadow-none text-gray-700 hover:bg-[#E5E5E5]"
-                    onClick={() => setShowCreateDialog(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700">Create Workspace</Button>
-                </DialogFooter>
-              </form>
+              <div className="overflow-y-auto flex-1 px-6">
+                <CreateWorkspaceForm
+                  onSuccess={() => {
+                    setShowCreateDialog(false);
+                    refreshProfile();
+                    toast.success('Workspace created successfully!');
+                  }}
+                  onCancel={() => setShowCreateDialog(false)}
+                />
+              </div>
             </DialogContent>
           </Dialog>
         </div>
@@ -1356,9 +1356,9 @@ export default function WorkspacesPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Settings Edit Dialog */}
+        {/* Settings Edit Dialog with Fixed Header/Footer and Scrollable Body */}
         <Dialog open={editingSettings} onOpenChange={setEditingSettings}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>Edit Workspace Settings</DialogTitle>
               <DialogDescription>
@@ -1366,97 +1366,27 @@ export default function WorkspacesPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="dialog-currency-name">Currency Name</Label>
-                  <Input
-                    id="dialog-currency-name"
-                    value={settingsData.currency_name || ''}
-                    onChange={(e) => setSettingsData({
-                      ...settingsData,
-                      currency_name: e.target.value
-                    })}
-                    placeholder="Karma"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="dialog-min-amount">Min Transaction Amount</Label>
-                  <Input
-                    id="dialog-min-amount"
-                    type="number"
-                    value={settingsData.min_transaction_amount || ''}
-                    onChange={(e) => setSettingsData({
-                      ...settingsData,
-                      min_transaction_amount: parseInt(e.target.value) || 1
-                    })}
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="dialog-max-amount">Max Transaction Amount</Label>
-                  <Input
-                    id="dialog-max-amount"
-                    type="number"
-                    value={settingsData.max_transaction_amount || ''}
-                    onChange={(e) => setSettingsData({
-                      ...settingsData,
-                      max_transaction_amount: parseInt(e.target.value) || 50
-                    })}
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="dialog-daily-limit">Daily Limit Percentage</Label>
-                  <Input
-                    id="dialog-daily-limit"
-                    type="number"
-                    value={settingsData.daily_limit_percentage || ''}
-                    onChange={(e) => setSettingsData({
-                      ...settingsData,
-                      daily_limit_percentage: parseInt(e.target.value) || 30
-                    })}
-                    min="1"
-                    max="100"
-                  />
-                </div>
-              </div>
-              
-              {/* Department Management */}
-              <div className="border-t pt-4">
-                <Label className="text-base font-semibold mb-2 block">Departments</Label>
-                <p className="text-sm text-gray-600 mb-3">
-                  Manage departments for your workspace. Team members will select from these when joining or updating their profile.
-                </p>
-                <DepartmentManager
-                  departments={settingsData.departments || ['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR']}
-                  onChange={(newDepartments) => setSettingsData({
-                    ...settingsData,
-                    departments: newDepartments
-                  })}
-                  disabled={false}
+            <div className="overflow-y-auto flex-1 px-6">
+              {workspaces.length > 0 && (
+                <EditWorkspaceForm
+                  workspaceId={workspaces[0].id}
+                  initialData={{
+                    currency_name: settingsData.currency_name || 'Karma',
+                    min_transaction_amount: settingsData.min_transaction_amount || 1,
+                    max_transaction_amount: settingsData.max_transaction_amount || 50,
+                    daily_limit_percentage: settingsData.daily_limit_percentage || 30,
+                    departments: settingsData.departments || ['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Marketing', 'HR'],
+                    logo_url: settingsData.logo_url || undefined,
+                  }}
+                  onSuccess={() => {
+                    setEditingSettings(false);
+                    loadProfileAndWorkspaces();
+                    toast.success('Workspace settings updated successfully!');
+                  }}
+                  onCancel={() => setEditingSettings(false)}
                 />
-              </div>
+              )}
             </div>
-
-            <DialogFooter>
-              <Button 
-                className="bg-[#F5F5F5] border-none shadow-none text-gray-700 hover:bg-[#E5E5E5]"
-                onClick={() => setEditingSettings(false)}
-              >
-                Cancel
-              </Button>
-              <Button 
-                className="bg-blue-600 text-white hover:bg-blue-700"
-                onClick={() => {
-                  if (workspaces.length > 0) {
-                    handleSaveSettings(workspaces[0].id);
-                  }
-                }}
-              >
-                Save Settings
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
         </div>

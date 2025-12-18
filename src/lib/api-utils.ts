@@ -168,17 +168,48 @@ export async function getAuthenticatedUserForJoin(req: NextRequest): Promise<{
     console.log('User authenticated:', user.id, user.email);
 
     // Try to get profile using server client, but don't fail if it doesn't exist
+    // In multi-workspace mode, fetch profile for current workspace preference
     let profile = null;
     try {
       console.log('Looking up profile for user:', user.id);
-      const { data: profileData, error: profileError } = await supabaseServer
-        .from('profiles')
-        .select('*')
+      
+      // First, get user's current workspace preference
+      const { data: userPref } = await supabaseServer
+        .from('user_preferences')
+        .select('current_workspace_id')
         .eq('auth_user_id', user.id)
         .maybeSingle();
+      
+      let workspaceId: string | null = null;
+      
+      if (userPref?.current_workspace_id) {
+        workspaceId = userPref.current_workspace_id;
+      } else {
+        // If no preference, get user's first workspace (prioritize super_admin)
+        const { data: profiles } = await supabaseServer
+          .from('profiles')
+          .select('workspace_id, role')
+          .eq('auth_user_id', user.id);
         
-      console.log('Profile lookup result:', { profile: !!profileData, error: profileError });
-      profile = profileData;
+        if (profiles && profiles.length > 0) {
+          // Prefer super_admin workspace, otherwise use first
+          const superAdminProfile = profiles.find(p => p.role === 'super_admin');
+          workspaceId = superAdminProfile?.workspace_id || profiles[0].workspace_id;
+        }
+      }
+      
+      // Query profile for the current workspace
+      if (workspaceId) {
+        const { data: profileData, error: profileError } = await supabaseServer
+          .from('profiles')
+          .select('*')
+          .eq('auth_user_id', user.id)
+          .eq('workspace_id', workspaceId)
+          .maybeSingle();
+          
+        console.log('Profile lookup result:', { profile: !!profileData, error: profileError });
+        profile = profileData;
+      }
     } catch (err) {
       console.log('Profile lookup exception:', err);
       // Ignore profile lookup errors for join API

@@ -58,6 +58,16 @@ GRANT EXECUTE ON FUNCTION public.get_workspace_departments(uuid) TO authenticate
 -- PHASE 4: Update create_workspace_with_owner to accept departments
 -- ============================================================================
 
+DROP FUNCTION IF EXISTS public.create_workspace_with_owner(
+  text, text, text, integer, text, integer, integer, integer, integer,
+  text, text, text, text, text, text
+) CASCADE;
+
+DROP FUNCTION IF EXISTS public.create_workspace_with_owner(
+  text, text, text, integer, text, integer, integer, integer, integer,
+  text, text, text, text, text, text, jsonb, text
+) CASCADE;
+
 CREATE OR REPLACE FUNCTION public.create_workspace_with_owner(
   p_name text,
   p_slug text,
@@ -74,7 +84,8 @@ CREATE OR REPLACE FUNCTION public.create_workspace_with_owner(
   p_job_title text DEFAULT NULL,
   p_bio text DEFAULT NULL,
   p_portfolio_url text DEFAULT NULL,
-  p_departments jsonb DEFAULT '["Frontend", "Backend", "UAT", "QA", "Design", "Marketing", "HR"]'::jsonb
+  p_departments jsonb DEFAULT '["Frontend", "Backend", "UAT", "QA", "Design", "Marketing", "HR"]'::jsonb,
+  p_user_department text DEFAULT NULL
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -86,12 +97,26 @@ DECLARE
   v_profile_id uuid;
   v_auth_user_id uuid;
   v_final_username text;
+  v_final_department text;
+  v_avatar_url text;
 BEGIN
   -- Get current authenticated user
   v_auth_user_id := auth.uid();
   
   IF v_auth_user_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  -- If avatar_url not provided, fetch from Google metadata
+  IF p_avatar_url IS NULL OR p_avatar_url = '' THEN
+    SELECT COALESCE(
+      user_metadata->>'picture',
+      user_metadata->>'avatar_url'
+    ) INTO v_avatar_url
+    FROM auth.users
+    WHERE id = v_auth_user_id;
+  ELSE
+    v_avatar_url := p_avatar_url;
   END IF;
 
   -- Check if user already has a profile (shouldn't happen, but safety check)
@@ -137,6 +162,13 @@ BEGIN
     v_final_username := p_username;
   END IF;
 
+  -- Set user department, default to first if not provided
+  IF p_user_department IS NOT NULL AND p_user_department != '' THEN
+    v_final_department := p_user_department;
+  ELSE
+    v_final_department := p_departments->>0;
+  END IF;
+
   -- Create owner profile with super_admin role
   INSERT INTO public.profiles (
     auth_user_id,
@@ -158,7 +190,7 @@ BEGIN
     v_workspace_id,
     p_owner_email,
     p_full_name,
-    p_avatar_url,
+    v_avatar_url,
     v_final_username,
     p_job_title,
     p_bio,
@@ -166,7 +198,7 @@ BEGIN
     'super_admin',
     p_monthly_allowance,
     0,
-    p_departments->0, -- Assign first department as default
+    v_final_department,
     true
   )
   RETURNING id INTO v_profile_id;
@@ -184,7 +216,7 @@ $$;
 -- Grant execute permission
 GRANT EXECUTE ON FUNCTION public.create_workspace_with_owner(
   text, text, text, integer, text, integer, integer, integer, integer, 
-  text, text, text, text, text, text, jsonb
+  text, text, text, text, text, text, jsonb, text
 ) TO authenticated;
 
 -- ============================================================================
@@ -215,10 +247,23 @@ DECLARE
   v_final_username text;
   v_final_department text;
   v_workspace_departments jsonb;
+  v_avatar_url text;
 BEGIN
   -- Validate authentication context
   IF p_auth_user_id IS NULL THEN
     RAISE EXCEPTION 'Authenticated user id is required';
+  END IF;
+
+  -- If avatar_url not provided, fetch from Google metadata
+  IF p_avatar_url IS NULL OR p_avatar_url = '' THEN
+    SELECT COALESCE(
+      user_metadata->>'picture',
+      user_metadata->>'avatar_url'
+    ) INTO v_avatar_url
+    FROM auth.users
+    WHERE id = p_auth_user_id;
+  ELSE
+    v_avatar_url := p_avatar_url;
   END IF;
 
   -- Validate invitation code
@@ -306,7 +351,7 @@ BEGIN
     v_workspace_id,
     p_user_email,
     p_full_name,
-    p_avatar_url,
+    v_avatar_url,
     v_final_username,
     p_job_title,
     p_bio,

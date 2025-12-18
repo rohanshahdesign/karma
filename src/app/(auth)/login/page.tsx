@@ -14,16 +14,39 @@ export default function LoginPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: profile } = await supabase
+      
+      // For multi-workspace support: check if user has any profiles
+      const { data: profiles } = await supabase
         .from('profiles')
-        .select('id')
+        .select('id, workspace_id')
         .eq('auth_user_id', user.id)
-        .maybeSingle();
-      if (profile) {
-        router.replace('/home');
+        .limit(1);
+      
+      if (profiles && profiles.length > 0) {
+        // User has at least one workspace/profile, check for current workspace preference
+        const { data: preferences } = await supabase
+          .from('user_preferences')
+          .select('current_workspace_id')
+          .eq('auth_user_id', user.id)
+          .single();
+        
+        // If user has a workspace preference, use it; otherwise use the first available workspace
+        if (preferences?.current_workspace_id) {
+          router.replace('/home');
+        } else {
+          // Set the first workspace as current
+          await supabase
+            .from('user_preferences')
+            .upsert({
+              auth_user_id: user.id,
+              current_workspace_id: profiles[0].workspace_id
+            });
+          router.replace('/home');
+        }
         return;
       }
-      // ensure pending record exists then go to onboarding
+      
+      // No profiles exist - user needs to complete onboarding
       await supabase
         .from('pending_users')
         .upsert({ auth_user_id: user.id, email: user.email });
