@@ -224,7 +224,7 @@ export default function LeaderboardPage() {
             Leaderboard
           </h1>
           <p className="text-gray-600">
-            See who`&apos;`s spreading the most {currencyName.toLowerCase()} in your workspace
+            See who&apos;s spreading the most {currencyName.toLowerCase()} in your workspace
           </p>
         </div>
         <Button

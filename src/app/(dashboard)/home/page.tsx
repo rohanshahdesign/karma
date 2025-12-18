@@ -143,7 +143,7 @@ export default function DashboardHomePage() {
           Welcome back, {currentProfile.full_name?.split(' ')[0] || "there"}!
         </h1>
         <p className="text-gray-600">
-          Here`&apos;`s your {currencyName} activity summary
+          Here&apos;s your {currencyName} activity summary
         </p>
       </div>
 

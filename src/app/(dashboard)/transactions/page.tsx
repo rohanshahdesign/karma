@@ -124,6 +124,9 @@ export default function TransactionsPage() {
       url.searchParams.delete('view');
     }
     window.history.pushState({}, '', url);
+    
+    // Load transactions for the new view with current filters
+    loadTransactions(1, filters, newView, false);
   };
 
   const loadTransactions = useCallback(async (pageNum: number, filterState: FilterState, currentView: ViewType, isLoadMore: boolean = false) => {
@@ -325,7 +328,7 @@ export default function TransactionsPage() {
             );
         } else if (transaction.receiver_profile_id === currentProfile?.id) {
             return (
-                <Badge variant="default" className="text-xs">
+                <Badge variant="default" className="text-xs bg-green-100 text-green-800">
                     Received
                 </Badge>
             );
@@ -339,7 +342,7 @@ export default function TransactionsPage() {
     return (
       <Badge 
         variant={isSent ? "destructive" : "default"} 
-        className={`text-xs ${isSent ? 'bg-red-100 text-red-800 hover:bg-red-100' : ''}`}
+        className={`text-xs ${isSent ? 'bg-red-100 text-red-800 hover:bg-red-100' : 'bg-green-100 text-green-800 hover:bg-green-100'}`}
       >
         {isSent ? 'Sent' : 'Received'}
       </Badge>
@@ -441,7 +444,7 @@ export default function TransactionsPage() {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
                       id="search"
-                      placeholder="Search messages or names..."
+                      placeholder="Search messages"
                       value={searchInput}
                       onChange={(e) => handleFilterChange('search', e.target.value)}
                       className="pl-10 h-10"
@@ -559,54 +562,58 @@ export default function TransactionsPage() {
                     const amountPrefix = isThirdParty ? '' : (isSent ? '-' : '+');
 
                     return (
-                      <div key={transaction.id} className="flex items-center space-x-4 p-4 border border-[#ebebeb] rounded-lg">
-                        {/* Icon */}
-                        <div className="flex-shrink-0">
-                          {getTransactionIcon(transaction)}
-                        </div>
+                      <div key={transaction.id} className="group relative px-3 py-3 md:px-4 md:py-3 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50/50 transition-all">
+                        <div className="flex gap-3 md:gap-4">
+                          {/* Avatar with Transaction Icon Overlay */}
+                          <div className="flex-shrink-0 relative">
+                            <UserAvatar user={displayUser} size="md" />
+                            <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 border border-gray-100 shadow-sm">
+                              {getTransactionIcon(transaction)}
+                            </div>
+                          </div>
 
-                        {/* Avatar */}
-                        <UserAvatar user={displayUser} size="lg" />
-
-                        {/* Transaction Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
+                          {/* Main Content */}
+                          <div className="flex-1 min-w-0">
+                            {/* Primary Row: Name + Amount */}
+                            <div className="flex items-baseline justify-between gap-2 mb-1">
+                              <p className="text-sm font-semibold text-gray-900 truncate">
                                 {isThirdParty ? (
                                     <>
-                                        <span className="font-semibold">{getUserDisplayName(transaction.sender_profile)}</span>
-                                        {' '}sent to{' '}
-                                        <span className="font-semibold">{getUserDisplayName(transaction.receiver_profile)}</span>
+                                        <span>{getUserDisplayName(transaction.sender_profile)}</span>
+                                        <span className="font-normal text-gray-500"> → </span>
+                                        <span>{getUserDisplayName(transaction.receiver_profile)}</span>
                                     </>
                                 ) : (
                                     <>
                                         {isSent ? 'Sent to' : 'Received from'} {' '}
-                                        <span className="font-semibold">
-                                            {getUserDisplayName(displayUser)}
-                                        </span>
+                                        <span>{getUserDisplayName(displayUser)}</span>
                                     </>
                                 )}
                               </p>
+                              <p className={`text-sm font-bold whitespace-nowrap ${amountClass}`}>
+                                {amountPrefix}{formatCurrencyAmount(transaction.amount, currencyName)}
+                              </p>
+                            </div>
+
+                            {/* Secondary Row: Date + Badge */}
+                            <div className="flex items-center justify-between gap-2">
                               <p className="text-xs text-gray-500">
                                 {formatDate(transaction.created_at)}
                               </p>
-                            </div>
-                            <div className="text-right">
-                              <p className={`text-lg font-bold ${amountClass}`}>
-                                {amountPrefix}{formatCurrencyAmount(transaction.amount, currencyName)}
-                              </p>
-                              {getTransactionBadge(transaction)}
+                              <div className="flex items-center gap-1">
+                                {getTransactionBadge(transaction)}
+                              </div>
                             </div>
                           </div>
-                          
-                          {transaction.message && (
-                            <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-                              <MessageSquare className="h-3 w-3 inline mr-1 text-gray-400" />
-                              {transaction.message}
-                            </div>
-                          )}
                         </div>
+
+                        {/* Message - Below main content if present */}
+                        {transaction.message && (
+                          <div className="mt-2.5 ml-10 md:ml-12 p-2.5 bg-gray-50 rounded border border-gray-100 text-xs text-gray-700 flex items-start gap-2">
+                            <MessageSquare className="h-3 w-3 flex-shrink-0 text-gray-400 mt-0.5" />
+                            <span className="line-clamp-2">{transaction.message}</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
