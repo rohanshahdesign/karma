@@ -247,6 +247,26 @@ export async function getTransactionsByProfileClient(
       `sender_profile_id.eq.${profileId},receiver_profile_id.eq.${profileId}`
     );
 
+  // Apply filters
+  if (config?.filters) {
+    config.filters.forEach((filter) => {
+      switch (filter.operator) {
+        case 'eq':
+          query = query.eq(filter.field, filter.value);
+          break;
+        case 'gte':
+          query = query.gte(filter.field, filter.value);
+          break;
+        case 'lte':
+          query = query.lte(filter.field, filter.value);
+          break;
+        case 'like':
+          query = query.ilike(filter.field, `%${filter.value}%`);
+          break;
+      }
+    });
+  }
+
   // Apply sorting
   if (config?.sort) {
     config.sort.forEach((sort) => {
@@ -310,6 +330,9 @@ export async function getTransactionsByWorkspaceClient(
           break;
         case 'lte':
           query = query.lte(filter.field, filter.value);
+          break;
+        case 'like':
+          query = query.ilike(filter.field, `%${filter.value}%`);
           break;
       }
     });
