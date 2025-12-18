@@ -30,7 +30,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
       
       if (workspaces && workspaces.length > 0) {
         // Prefer super_admin workspace, otherwise use first
-        const superAdminWs = workspaces.find((w: any) => w.user_role === 'super_admin');
+        const superAdminWs = workspaces.find((w: { user_role: string; workspace_id: string }) => w.user_role === 'super_admin');
         workspaceId = superAdminWs?.workspace_id || workspaces[0].workspace_id;
       }
     }
