@@ -27,6 +27,7 @@ export const POST = withErrorHandling(
           `
             id,
             code,
+            workspace_id,
             active,
             expires_at,
             max_uses,
@@ -75,6 +76,7 @@ export const POST = withErrorHandling(
       return createSuccessResponse(
         {
           valid: true,
+          workspace_id: invitation.workspace_id,
           invitation: {
             code: invitation.code,
             expires_at: invitation.expires_at,

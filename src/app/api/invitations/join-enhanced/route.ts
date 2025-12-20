@@ -98,7 +98,8 @@ export const POST = withErrorHandling(
             profile_picture_path: body.profile.profile_picture_path,
             avatar_url: body.profile.profile_picture_url 
           })
-          .eq('auth_user_id', req.user.id);
+          .eq('auth_user_id', req.user.id)
+          .eq('workspace_id', workspaceId);
           
         if (updateError) {
           console.warn('Failed to update profile picture path:', updateError);
@@ -106,7 +107,8 @@ export const POST = withErrorHandling(
         }
       }
       
-      // Get the created profile
+      // Get the created profile - IMPORTANT: filter by both auth_user_id AND workspace_id
+      // This is essential for multi-workspace support to avoid returning all profiles across workspaces
       const { data: newProfile, error: profileError } = await req.supabase
         .from('profiles')
         .select(`
@@ -114,6 +116,7 @@ export const POST = withErrorHandling(
           workspace:workspaces (*)
         `)
         .eq('auth_user_id', req.user.id)
+        .eq('workspace_id', workspaceId)
         .single();
         
       if (profileError) {
