@@ -24,15 +24,35 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      const { data: profile } = await supabase
+      // For multi-workspace support: check if user has any profiles
+      // Use limit(1) instead of maybeSingle() to handle multiple workspace profiles correctly
+      const { data: profiles } = await supabase
         .from('profiles')
-        .select('id')
+        .select('id, workspace_id')
         .eq('auth_user_id', user.id)
-        .maybeSingle();
+        .limit(1);
 
-      if (profile) {
+      if (profiles && profiles.length > 0) {
+        // User has at least one workspace/profile, set preference if not already set
+        const { data: preferences } = await supabase
+          .from('user_preferences')
+          .select('current_workspace_id')
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
+        
+        // If user doesn't have a workspace preference, set the first workspace as current
+        if (!preferences?.current_workspace_id) {
+          await supabase
+            .from('user_preferences')
+            .upsert({
+              auth_user_id: user.id,
+              current_workspace_id: profiles[0].workspace_id
+            });
+        }
+        
         router.replace('/home');
       } else {
+        // No profiles exist - user needs to complete onboarding
         // Extract Google profile data from user metadata
         const fullName = user.user_metadata?.full_name || user.user_metadata?.name;
         const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture;
