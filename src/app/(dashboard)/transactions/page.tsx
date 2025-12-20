@@ -116,6 +116,13 @@ export default function TransactionsPage() {
   }, []);
 
   const updateView = (newView: ViewType) => {
+    // Reset pagination for the new view to prevent page 2+ requests on tab switch
+    if (newView === 'you') {
+      setPageYou(1);
+    } else {
+      setPageEveryone(1);
+    }
+    
     setView(newView);
     const url = new URL(window.location.href);
     if (newView === 'everyone') {
