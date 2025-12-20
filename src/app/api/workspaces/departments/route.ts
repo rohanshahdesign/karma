@@ -9,13 +9,14 @@ const DEFAULT_DEPARTMENTS = ['Frontend', 'Backend', 'UAT', 'QA', 'Design', 'Mark
 
 export async function GET(request: NextRequest) {
   try {
-    // Get the authenticated user using the proper authentication helper
-    const { profile: userProfile } = await getAuthenticatedUserForJoin(request);
+    // Authenticate the user - must be signed in to fetch departments
+    // But they don't need a profile in this specific workspace yet (they might be joining)
+    const { id: userId } = await getAuthenticatedUserForJoin(request);
     
-    if (!userProfile) {
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'Profile required - please complete onboarding', code: 'UNAUTHORIZED' },
-        { status: 403 }
+        { success: false, error: 'Authentication required', code: 'UNAUTHORIZED' },
+        { status: 401 }
       );
     }
 
@@ -29,15 +30,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify user belongs to the requested workspace
-    if (userProfile.workspace_id !== workspaceId) {
-      return NextResponse.json(
-        { success: false, error: 'Access denied to this workspace', code: 'FORBIDDEN' },
-        { status: 403 }
-      );
-    }
-
     // Fetch departments from workspace_settings
+    // Authenticated users can fetch departments for any workspace (departments are not sensitive data)
+    // This allows users joining a new workspace to see the department options
     const { data: settings, error: settingsError } = await supabaseServer
       .from('workspace_settings')
       .select('departments')
