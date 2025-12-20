@@ -14,9 +14,10 @@ import {
   LogOut,
   User,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useUser } from '@/contexts/UserContext';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { supabase } from '@/lib/supabase';
 import { getWorkspaceClient } from '@/lib/database-client';
 import { Workspace } from '@/lib/supabase-types';
@@ -76,13 +77,13 @@ const navItems: NavItem[] = [
 
 export default function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const pathname = usePathname();
   const router = useRouter();
-  
+
   // Get profile and auth status from context
   const { profile: currentProfile, isAuthenticated, isLoading } = useUser();
-  const { workspaceSettings } = useWorkspace();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -107,22 +108,52 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      router.push('/login');
+      router.replace('/login');
     } catch (error) {
       console.error('Error during logout:', error);
+      // Force redirect even if signOut fails
+      router.replace('/login');
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Desktop Sidebar */}
-      <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
-        <div className="flex-1 flex flex-col min-h-0 bg-white border-r border-gray-200">
-          <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
-            <div className="flex items-center flex-shrink-0 px-2">
-              <WorkspaceSwitcher currentWorkspaceId={currentProfile?.workspace_id} />
+      <div
+        className={`hidden md:flex md:flex-col md:fixed md:inset-y-0 transition-all duration-300 ${
+          sidebarCollapsed ? 'md:w-16' : 'md:w-64'
+        }`}
+      >
+        <div className="flex-1 flex flex-col min-h-0 bg-white/80 backdrop-blur-sm border-r border-[#ebebeb]">
+          <div className="flex-1 flex flex-col pt-4 pb-4 overflow-y-auto">
+            {/* Collapse Toggle */}
+            <div className="flex items-center justify-end px-2 mb-4">
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-900"
+                aria-label={
+                  sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
+                }
+              >
+                {sidebarCollapsed ? (
+                  <ChevronRight className="h-4 w-4" />
+                ) : (
+                  <ChevronLeft className="h-4 w-4" />
+                )}
+              </button>
             </div>
-            <nav className="mt-8 flex-1 px-2 space-y-1">
+
+            {/* Workspace Switcher */}
+            {!sidebarCollapsed && (
+              <div className="flex items-center flex-shrink-0 px-2 mb-6">
+                <WorkspaceSwitcher
+                  currentWorkspaceId={currentProfile?.workspace_id}
+                />
+              </div>
+            )}
+
+            {/* Navigation */}
+            <nav className="flex-1 px-2 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
@@ -130,22 +161,31 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`group flex items-center px-2 py-2.5 text-sm font-light rounded-lg transition-colors ${
                       active
                         ? 'bg-accent/10 text-accent'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        : 'text-gray-600 hover:bg-gray-50/80 hover:text-gray-900'
                     }`}
+                    title={sidebarCollapsed ? item.label : undefined}
                   >
                     <Icon
-                      className={`mr-3 h-5 w-5 flex-shrink-0 ${
-                        active ? 'text-accent' : 'text-gray-400 group-hover:text-gray-500'
+                      className={`h-5 w-5 flex-shrink-0 ${
+                        sidebarCollapsed ? '' : 'mr-3'
+                      } ${
+                        active
+                          ? 'text-accent'
+                          : 'text-gray-400 group-hover:text-gray-500'
                       }`}
                     />
-                    {item.label}
-                    {item.badge && (
-                      <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-medium leading-4 text-white bg-red-500 rounded-full">
-                        {item.badge}
-                      </span>
+                    {!sidebarCollapsed && (
+                      <>
+                        <span className="flex-1">{item.label}</span>
+                        {item.badge && (
+                          <span className="ml-auto inline-flex items-center justify-center px-2 py-0.5 text-xs font-normal leading-4 text-white bg-red-500 rounded-full">
+                            {item.badge}
+                          </span>
+                        )}
+                      </>
                     )}
                   </Link>
                 );
@@ -153,45 +193,98 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </nav>
           </div>
           {currentProfile && (
-            <div className="flex-shrink-0 flex border-t border-gray-200">
-              <DropdownMenu>
-                <DropdownMenuTrigger className="w-full p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <UserAvatar user={currentProfile} size="md" clickable={false} />
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-700 text-left">
-                          {getUserDisplayName(currentProfile)}
-                        </p>
-                        <p className="text-xs font-medium text-gray-500 capitalize text-left">
-                          {currentProfile.role.replace('_', ' ')}
-                        </p>
-                      </div>
+            <div className="flex-shrink-0 flex border-t border-[#ebebeb]">
+              {sidebarCollapsed ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="w-full p-3 hover:bg-gray-50/80 transition-colors">
+                    <div className="flex items-center justify-center">
+                      <UserAvatar
+                        user={currentProfile}
+                        size="sm"
+                        clickable={false}
+                      />
                     </div>
-                    <ChevronUp className="h-4 w-4 text-gray-500" />
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="center"
-                  sideOffset={12}
-                  className="w-56 border-[#ebebeb] mx-4"
-                >
-                  <DropdownMenuItem asChild className="flex items-center cursor-pointer hover:bg-gray-50">
-                    <Link href="/profile">
-                      <User className="mr-2 h-4 w-4" />
-                      Profile Settings
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    className="flex items-center cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50"
-                    onClick={handleLogout}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    sideOffset={12}
+                    className="w-56 border-[#ebebeb]"
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Logout
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <div className="px-2 py-1.5">
+                      <p className="text-sm font-light text-gray-700">
+                        {getUserDisplayName(currentProfile)}
+                      </p>
+                      <p className="text-xs font-light text-gray-500 capitalize">
+                        {currentProfile.role.replace('_', ' ')}
+                      </p>
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      asChild
+                      className="flex items-center cursor-pointer hover:bg-gray-50"
+                    >
+                      <Link href="/profile">
+                        <User className="mr-2 h-4 w-4" />
+                        Profile Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="flex items-center cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50"
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Logout
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="w-full p-3 hover:bg-gray-50/80 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <UserAvatar
+                          user={currentProfile}
+                          size="md"
+                          clickable={false}
+                        />
+                        <div className="ml-3">
+                          <p className="text-sm font-light text-gray-700 text-left">
+                            {getUserDisplayName(currentProfile)}
+                          </p>
+                          <p className="text-xs font-light text-gray-500 capitalize text-left">
+                            {currentProfile.role.replace('_', ' ')}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronUp className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="center"
+                    sideOffset={12}
+                    className="w-56 border-[#ebebeb] mx-4"
+                  >
+                    <DropdownMenuItem
+                      asChild
+                      className="flex items-center cursor-pointer hover:bg-gray-50"
+                    >
+                      <Link href="/profile">
+                        <User className="mr-2 h-4 w-4" />
+                        Profile Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="flex items-center cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50"
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Logout
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           )}
         </div>
@@ -205,19 +298,21 @@ export default function AppLayout({ children }: AppLayoutProps) {
               className="fixed inset-0 bg-gray-600 bg-opacity-75"
               onClick={() => setSidebarOpen(false)}
             />
-            <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white">
+            <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white/95 backdrop-blur-sm">
               <div className="absolute top-0 right-0 -mr-12 pt-2">
                 <button
                   type="button"
-                  className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                  className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white transition-colors"
                   onClick={() => setSidebarOpen(false)}
                 >
                   <X className="h-6 w-6 text-white" />
                 </button>
               </div>
               <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
-                <div className="flex-shrink-0 flexitems-center px-3">
-                  <WorkspaceSwitcher currentWorkspaceId={currentProfile?.workspace_id} />
+                <div className="flex-shrink-0 flex items-center px-3">
+                  <WorkspaceSwitcher
+                    currentWorkspaceId={currentProfile?.workspace_id}
+                  />
                 </div>
                 <nav className="mt-5 flex-1 px-2 space-y-1">
                   {navItems.map((item) => {
@@ -227,10 +322,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`group flex items-center px-2 py-2 text-base font-medium rounded-md ${
+                        className={`group flex items-center px-2 py-2.5 text-base font-light rounded-lg transition-colors ${
                           active
-                            ? 'bg-accent/10 text-accent hover:bg-gray-50'
-                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            ? 'bg-accent/10 text-accent hover:bg-gray-50/80'
+                            : 'text-gray-600 hover:bg-gray-50/80 hover:text-gray-900'
                         }`}
                         onClick={() => setSidebarOpen(false)}
                       >
@@ -241,7 +336,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         />
                         {item.label}
                         {item.badge && (
-                          <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-medium leading-4 text-white bg-red-500 rounded-full">
+                          <span className="ml-auto inline-flex items-center justify-center px-2 py-0.5 text-xs font-normal leading-4 text-white bg-red-500 rounded-full">
                             {item.badge}
                           </span>
                         )}
@@ -251,25 +346,29 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 </nav>
               </div>
               {currentProfile && (
-                <div className="flex-shrink-0 border-t border-gray-200 p-4">
-                  <Link 
+                <div className="flex-shrink-0 border-t border-[#ebebeb] p-4">
+                  <Link
                     href="/profile"
-                    className="flex items-center mb-3 p-2 rounded-md hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="flex items-center mb-3 p-2 rounded-lg hover:bg-gray-50/80 transition-colors cursor-pointer"
                     onClick={() => setSidebarOpen(false)}
                   >
-                    <UserAvatar user={currentProfile} size="md" clickable={false} />
+                    <UserAvatar
+                      user={currentProfile}
+                      size="md"
+                      clickable={false}
+                    />
                     <div className="ml-3">
-                      <p className="text-sm font-medium text-gray-700">
+                      <p className="text-sm font-light text-gray-700">
                         {getUserDisplayName(currentProfile)}
                       </p>
-                      <p className="text-xs font-medium text-gray-500 capitalize">
+                      <p className="text-xs font-light text-gray-500 capitalize">
                         {currentProfile.role.replace('_', ' ')}
                       </p>
                     </div>
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                    className="w-full flex items-center px-3 py-2 text-sm font-light text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
@@ -282,23 +381,27 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </div>
 
       {/* Main content */}
-      <div className="md:pl-64 flex flex-col flex-1">
+      <div
+        className={`flex flex-col flex-1 transition-all duration-300 ${
+          sidebarCollapsed ? 'md:pl-16' : 'md:pl-64'
+        }`}
+      >
         {/* Mobile header */}
-        <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <div className="md:hidden bg-white/80 backdrop-blur-sm border-b border-[#ebebeb] px-4 py-3 flex items-center justify-between">
           <button
             type="button"
-            className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
+            className="p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-50/80 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent transition-colors"
             onClick={() => setSidebarOpen(true)}
           >
             <Menu className="h-6 w-6" />
           </button>
           <div className="flex items-center">
             <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center">
-              <span className="text-white font-bold text-xs">
+              <span className="text-white font-light text-xs">
                 {workspace?.name?.charAt(0) || 'K'}
               </span>
             </div>
-            <span className="ml-2 text-lg font-semibold text-gray-900">
+            <span className="ml-2 text-lg font-light text-gray-900">
               {workspace?.name || 'Workspace'}
             </span>
           </div>
@@ -306,13 +409,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Page content */}
-        <main className="flex-1 pb-16 md:pb-0">
-          {children}
-        </main>
+        <main className="flex-1 pb-16 md:pb-0">{children}</main>
 
         {/* Mobile bottom navigation */}
         {!sidebarOpen && (
-          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-t border-[#ebebeb] z-50">
             <div className="flex">
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -321,12 +422,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex-1 flex flex-col items-center py-2 px-1 ${
+                    className={`flex-1 flex flex-col items-center py-2 px-1 transition-colors ${
                       active ? 'text-accent' : 'text-gray-600'
                     }`}
                   >
                     <Icon className="h-5 w-5" />
-                    <span className="text-xs mt-1">{item.label}</span>
+                    <span className="text-xs mt-1 font-light">
+                      {item.label}
+                    </span>
                   </Link>
                 );
               })}

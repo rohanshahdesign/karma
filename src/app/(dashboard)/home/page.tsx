@@ -4,11 +4,22 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { getProfileBalance, getDailyLimitInfo, type BalanceInfo, type DailyLimitInfo } from '@/lib/balance';
-import { TransactionWithProfiles } from '@/lib/supabase-types';
+import {
+  getProfileBalance,
+  getDailyLimitInfo,
+  type BalanceInfo,
+  type DailyLimitInfo,
+} from '@/lib/balance';
+import {
+  TransactionWithProfiles,
+  WorkspaceStats,
+  Profile,
+} from '@/lib/supabase-types';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useUser } from '@/contexts/UserContext';
-import { formatCurrencyAmount, CURRENCY_PATTERNS } from '@/lib/currency';
+import { formatCurrencyAmount } from '@/lib/currency';
+import { isAdmin } from '@/lib/permissions-client';
+import { getWorkspaceStatsClient } from '@/lib/database-client';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,29 +28,59 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { UserAvatar, getUserDisplayName } from '@/components/ui/user-avatar';
 import {
   Send,
-  TrendingUp,
-  Users,
   ArrowUpRight,
   ArrowDownLeft,
   MessageSquare,
   Calendar,
-  Coins,
-  History,
+  TrendingUp,
+  Users,
 } from 'lucide-react';
+import { EmployeeBalance } from '@/components/dashboard/EmployeeBalance';
+import { ActionButtons } from '@/components/dashboard/ActionButtons';
+import { KPICard } from '@/components/dashboard/KPICard';
+import { ActivityChart } from '@/components/dashboard/ActivityChart';
+import { TopContributors } from '@/components/dashboard/TopContributors';
+
+interface ChartDataPoint {
+  date: string;
+  sent: number;
+  received: number;
+  redeemed?: number;
+}
+
+interface Contributor {
+  profile: Profile;
+  total_received: number;
+  rank: number;
+}
 
 export default function DashboardHomePage() {
   const router = useRouter();
   const { currencyName } = useCurrency();
   const { profile: currentProfile, isLoading: isProfileLoading } = useUser();
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null);
-  const [dailyLimitInfo, setDailyLimitInfo] = useState<DailyLimitInfo | null>(null);
-  const [recentTransactions, setRecentTransactions] = useState<TransactionWithProfiles[]>([]);
+  const [dailyLimitInfo, setDailyLimitInfo] = useState<DailyLimitInfo | null>(
+    null
+  );
+  const [recentTransactions, setRecentTransactions] = useState<
+    TransactionWithProfiles[]
+  >([]);
+  const [workspaceStats, setWorkspaceStats] = useState<WorkspaceStats | null>(
+    null
+  );
+  const [userStats, setUserStats] = useState<{
+    total_sent: number;
+    total_received: number;
+  } | null>(null);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [topContributors, setTopContributors] = useState<Contributor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const isUserAdmin = isAdmin(currentProfile);
 
   const loadDashboardData = useCallback(async () => {
     if (!currentProfile) return;
@@ -60,7 +101,8 @@ export default function DashboardHomePage() {
       // Load recent transactions
       const { data: transactions } = await supabase
         .from('transactions')
-        .select(`
+        .select(
+          `
           *,
           sender_profile:profiles!sender_profile_id(
             id, email, full_name, avatar_url
@@ -68,52 +110,248 @@ export default function DashboardHomePage() {
           receiver_profile:profiles!receiver_profile_id(
             id, email, full_name, avatar_url
           )
-        `)
-        .or(`sender_profile_id.eq.${currentProfile.id},receiver_profile_id.eq.${currentProfile.id}`)
+        `
+        )
+        .or(
+          `sender_profile_id.eq.${currentProfile.id},receiver_profile_id.eq.${currentProfile.id}`
+        )
         .order('created_at', { ascending: false })
         .limit(5);
 
       setRecentTransactions(transactions || []);
+
+      // Calculate user's own stats (for both employee and admin dashboards)
+      // Calculate this month's sent/received for the current user
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+
+      const { data: userTransactions } = await supabase
+        .from('transactions')
+        .select('amount, sender_profile_id, receiver_profile_id, created_at')
+        .or(
+          `sender_profile_id.eq.${currentProfile.id},receiver_profile_id.eq.${currentProfile.id}`
+        )
+        .gte('created_at', monthStart.toISOString());
+
+      if (userTransactions) {
+        const sent = userTransactions.filter(
+          (tx) => tx.sender_profile_id === currentProfile.id
+        );
+        const received = userTransactions.filter(
+          (tx) => tx.receiver_profile_id === currentProfile.id
+        );
+
+        setUserStats({
+          total_sent: sent.reduce((sum, tx) => sum + tx.amount, 0),
+          total_received: received.reduce((sum, tx) => sum + tx.amount, 0),
+        });
+      }
+
+      // Load admin-specific data (workspace stats for charts, contributors, etc.)
+      if (isUserAdmin && currentProfile.workspace_id) {
+        // Load workspace stats for engagement metrics
+        try {
+          const stats = await getWorkspaceStatsClient(
+            currentProfile.workspace_id
+          );
+          setWorkspaceStats(stats);
+        } catch (err) {
+          console.error('Failed to load workspace stats:', err);
+          // Fallback: calculate workspace stats manually if RPC function doesn't exist
+          try {
+            const [profilesResult, transactionsResult] = await Promise.all([
+              supabase
+                .from('profiles')
+                .select('id', { count: 'exact' })
+                .eq('workspace_id', currentProfile.workspace_id)
+                .eq('active', true),
+              supabase
+                .from('transactions')
+                .select(
+                  'amount, created_at, sender_profile_id, receiver_profile_id'
+                )
+                .eq('workspace_id', currentProfile.workspace_id),
+            ]);
+
+            const totalMembers = profilesResult.count || 0;
+            const allTransactions = transactionsResult.data || [];
+            const totalTransactions = allTransactions.length;
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const weekAgo = new Date(today);
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            const monthAgo = new Date(today);
+            monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+            const activeToday = new Set<string>();
+            const activeThisWeek = new Set<string>();
+            const activeThisMonth = new Set<string>();
+
+            allTransactions.forEach((tx) => {
+              const txDate = new Date(tx.created_at);
+              if (txDate >= today) {
+                activeToday.add(tx.sender_profile_id);
+                activeToday.add(tx.receiver_profile_id);
+              }
+              if (txDate >= weekAgo) {
+                activeThisWeek.add(tx.sender_profile_id);
+                activeThisWeek.add(tx.receiver_profile_id);
+              }
+              if (txDate >= monthAgo) {
+                activeThisMonth.add(tx.sender_profile_id);
+                activeThisMonth.add(tx.receiver_profile_id);
+              }
+            });
+
+            setWorkspaceStats({
+              total_members: totalMembers,
+              total_transactions: totalTransactions,
+              total_karma_sent: 0, // Not used for admin dashboard KPIs
+              total_karma_received: 0, // Not used for admin dashboard KPIs
+              active_members_today: activeToday.size,
+              active_members_this_week: activeThisWeek.size,
+              active_members_this_month: activeThisMonth.size,
+            });
+          } catch (fallbackErr) {
+            console.error(
+              'Failed to calculate workspace stats fallback:',
+              fallbackErr
+            );
+          }
+        }
+
+        // Load chart data (last 30 days) - showing admin's personal activity
+        try {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+          const { data: allTransactions } = await supabase
+            .from('transactions')
+            .select(
+              'amount, created_at, sender_profile_id, receiver_profile_id'
+            )
+            .eq('workspace_id', currentProfile.workspace_id)
+            .gte('created_at', thirtyDaysAgo.toISOString())
+            .order('created_at', { ascending: true });
+
+          if (allTransactions) {
+            // Group by date - track admin's personal sent and received
+            const dailyData: Record<
+              string,
+              { sent: number; received: number }
+            > = {};
+
+            allTransactions.forEach((tx) => {
+              const date = new Date(tx.created_at).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+              });
+              if (!dailyData[date]) {
+                dailyData[date] = { sent: 0, received: 0 };
+              }
+
+              // Track admin's personal activity
+              if (tx.sender_profile_id === currentProfile.id) {
+                dailyData[date].sent += tx.amount;
+              }
+              if (tx.receiver_profile_id === currentProfile.id) {
+                dailyData[date].received += tx.amount;
+              }
+            });
+
+            const chartPoints: ChartDataPoint[] = Object.entries(dailyData).map(
+              ([date, data]) => ({
+                date,
+                sent: data.sent,
+                received: data.received,
+              })
+            );
+
+            setChartData(chartPoints);
+          }
+        } catch (err) {
+          console.error('Failed to load chart data:', err);
+        }
+
+        // Load top contributors
+        try {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('workspace_id', currentProfile.workspace_id)
+            .eq('active', true);
+
+          if (profiles && profiles.length > 0) {
+            const { data: receivedTransactions } = await supabase
+              .from('transactions')
+              .select('receiver_profile_id, amount')
+              .eq('workspace_id', currentProfile.workspace_id)
+              .in(
+                'receiver_profile_id',
+                profiles.map((p) => p.id)
+              );
+
+            const contributorMap = new Map<string, number>();
+            receivedTransactions?.forEach((tx) => {
+              const current = contributorMap.get(tx.receiver_profile_id) || 0;
+              contributorMap.set(tx.receiver_profile_id, current + tx.amount);
+            });
+
+            const contributors: Contributor[] = Array.from(
+              contributorMap.entries()
+            )
+              .map(([profileId, total]) => {
+                const profile = profiles.find((p) => p.id === profileId);
+                if (!profile) return null;
+                return {
+                  profile: profile as Profile,
+                  total_received: total,
+                  rank: 0, // Will be set after sorting
+                };
+              })
+              .filter((c): c is Contributor => c !== null)
+              .sort((a, b) => b.total_received - a.total_received)
+              .slice(0, 5)
+              .map((c, index) => ({ ...c, rank: index + 1 }));
+
+            setTopContributors(contributors);
+          }
+        } catch (err) {
+          console.error('Failed to load top contributors:', err);
+        }
+      }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       setError('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
-  }, [currentProfile]);
+  }, [currentProfile, isUserAdmin]);
 
   useEffect(() => {
     if (currentProfile) {
       loadDashboardData();
     } else if (!isProfileLoading && !currentProfile) {
-        // Handle case where user is logged in but has no profile (e.g. new user)
-        // Check if we need to create a pending user entry or redirect
-        const checkUser = async () => {
-             const { data: { user } } = await supabase.auth.getUser();
-             if (user) {
-                 // Create pending user entry if needed
-                 await supabase
-                  .from('pending_users')
-                  .upsert({ auth_user_id: user.id, email: user.email });
-                 router.replace('/onboarding');
-             }
-        };
-        checkUser();
+      // No profile found - redirect to login which will handle workspace check
+      router.replace('/login');
     }
   }, [currentProfile, isProfileLoading, loadDashboardData, router]);
 
   const formatTimeAgo = (dateString: string) => {
     const now = new Date();
     const date = new Date(dateString);
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
+    const diffInHours = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+    );
+
     if (diffInHours < 1) return 'Just now';
     if (diffInHours < 24) return `${diffInHours}h ago`;
     const diffInDays = Math.floor(diffInHours / 24);
     if (diffInDays < 7) return `${diffInDays}d ago`;
     return date.toLocaleDateString();
   };
-
 
   if (isProfileLoading || (loading && !balanceInfo)) {
     return (
@@ -127,137 +365,309 @@ export default function DashboardHomePage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
-          <p className="text-gray-600 mb-4">{error || 'Unable to load your profile'}</p>
-          <Button onClick={loadDashboardData}>Try Again</Button>
+          <h2 className="text-xl font-medium text-gray-900 mb-2">
+            Something went wrong
+          </h2>
+          <p className="text-gray-600 mb-4 font-normal">
+            {error || 'Unable to load your profile'}
+          </p>
+          <Button onClick={loadDashboardData} className="font-medium">
+            Try Again
+          </Button>
         </div>
       </div>
     );
   }
 
+  // Employee Dashboard
+  if (!isUserAdmin) {
+    return (
+      <div className="p-4 md:p-6 space-y-8 pb-20 md:pb-6">
+        {/* Welcome Message */}
+        <div className="space-y-1">
+          <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
+            Welcome back, {currentProfile.full_name?.split(' ')[0] || 'there'}!
+          </h1>
+          <p className="text-gray-600 font-normal">
+            Here&apos;s your {currencyName} overview
+          </p>
+        </div>
+
+        {/* Balance Display */}
+        {balanceInfo && (
+          <EmployeeBalance
+            redeemableBalance={balanceInfo.redeemable_balance}
+            givingBalance={balanceInfo.giving_balance}
+            currencyName={currencyName}
+          />
+        )}
+
+        {/* Action Buttons */}
+        <ActionButtons currencyName={currencyName} />
+
+        {/* Recent Activity */}
+        <Card className="border-[#ebebeb]">
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">
+              Recent Activity
+            </CardTitle>
+            <CardDescription className="font-normal">
+              Your latest {currencyName} transactions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recentTransactions.length > 0 ? (
+              <div className="space-y-4">
+                {recentTransactions.map((transaction) => {
+                  const isSent =
+                    transaction.sender_profile_id === currentProfile.id;
+                  const otherProfile = isSent
+                    ? transaction.receiver_profile
+                    : transaction.sender_profile;
+
+                  return (
+                    <div
+                      key={transaction.id}
+                      className="flex items-start space-x-4"
+                    >
+                      <div className="relative">
+                        {otherProfile ? (
+                          <UserAvatar user={otherProfile} size="md" />
+                        ) : (
+                          <UserAvatar
+                            user={{
+                              email: 'Unknown',
+                              full_name: null,
+                              avatar_url: null,
+                            }}
+                            size="md"
+                          />
+                        )}
+                        <div
+                          className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center ${
+                            isSent ? 'bg-blue-500' : 'bg-green-500'
+                          }`}
+                        >
+                          {isSent ? (
+                            <ArrowUpRight className="h-2.5 w-2.5 text-white" />
+                          ) : (
+                            <ArrowDownLeft className="h-2.5 w-2.5 text-white" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {isSent ? 'You sent' : 'You received'}{' '}
+                          {formatCurrencyAmount(
+                            transaction.amount,
+                            currencyName
+                          )}{' '}
+                          {isSent ? 'to' : 'from'}{' '}
+                          {otherProfile
+                            ? getUserDisplayName(otherProfile)
+                            : 'Someone'}
+                        </p>
+                        {transaction.message && (
+                          <p className="text-sm text-muted-foreground font-normal">
+                            &quot;{transaction.message}&quot;
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground font-normal">
+                          {formatTimeAgo(transaction.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  No transactions yet
+                </h3>
+                <p className="text-gray-600 mb-4 font-normal">
+                  Start by sending some {currencyName} to your teammates!
+                </p>
+                <Button asChild className="font-medium">
+                  <Link href="/send">
+                    <Send className="mr-2 h-4 w-4" />
+                    Send Your First{' '}
+                    {currencyName.charAt(0).toUpperCase() +
+                      currencyName.slice(1)}
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Admin Dashboard
   return (
     <div className="p-4 md:p-6 space-y-6 pb-20 md:pb-6">
       {/* Welcome Header */}
-      <div className="space-y-2">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-          Welcome back, {currentProfile.full_name?.split(' ')[0] || "there"}!
+      <div className="space-y-1">
+        <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
+          Welcome back, {currentProfile.full_name?.split(' ')[0] || 'there'}!
         </h1>
-        <p className="text-gray-600">
-          Here&apos;s your {currencyName} activity summary
+        <p className="text-gray-600 font-normal">
+          Here&apos;s your {currencyName} dashboard overview
         </p>
       </div>
 
-      {/* Balance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Giving Balance</CardTitle>
-            <Coins className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {balanceInfo?.giving_balance || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Available to give
-            </p>
-          </CardContent>
-        </Card>
+      {/* KPI Cards */}
+      {userStats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard
+            title={`${currencyName} Sent`}
+            subtitle="This month"
+            value={userStats.total_sent}
+            icon={Send}
+            iconColor="text-blue-600"
+            valueColor="text-blue-600"
+          />
+          <KPICard
+            title={`${currencyName} Received`}
+            subtitle="This month"
+            value={userStats.total_received}
+            icon={TrendingUp}
+            iconColor="text-green-600"
+            valueColor="text-green-600"
+          />
+          {workspaceStats && (
+            <>
+              <KPICard
+                title="Active Users"
+                subtitle="This month"
+                value={workspaceStats.active_members_this_month}
+                target={workspaceStats.total_members}
+                progress={
+                  workspaceStats.total_members > 0
+                    ? (workspaceStats.active_members_this_month /
+                        workspaceStats.total_members) *
+                      100
+                    : 0
+                }
+                icon={Users}
+                iconColor="text-purple-600"
+                valueColor="text-purple-600"
+              />
+              <KPICard
+                title="Daily Usage"
+                value={`${dailyLimitInfo?.percentage_used?.toFixed(0) || 0}%`}
+                progress={dailyLimitInfo?.percentage_used || 0}
+                icon={Calendar}
+                iconColor="text-orange-600"
+                valueColor="text-orange-600"
+              />
+            </>
+          )}
+        </div>
+      )}
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Earned Balance</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {balanceInfo?.redeemable_balance || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Total earned {currencyName}
-            </p>
-          </CardContent>
-        </Card>
+      {/* Main Content Area */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Chart Area */}
+        <div className="lg:col-span-2">
+          <ActivityChart data={chartData} currencyName={currencyName} />
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Daily Usage</CardTitle>
-            <Calendar className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
-              {dailyLimitInfo?.percentage_used?.toFixed(0) || 0}%
-            </div>
-            <Progress 
-              value={dailyLimitInfo?.percentage_used || 0} 
-              className="mt-2" 
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              {dailyLimitInfo?.remaining_limit || 0} / {dailyLimitInfo?.daily_limit || 0} remaining today
-            </p>
-          </CardContent>
-        </Card>
+        {/* Right Sidebar */}
+        <div className="space-y-6">
+          <TopContributors
+            contributors={topContributors}
+            currencyName={currencyName}
+          />
+
+          {/* Engagement Metrics */}
+          {workspaceStats && (
+            <Card className="border-[#ebebeb]">
+              <CardHeader>
+                <CardTitle className="text-lg font-medium">
+                  Engagement Overview
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-normal text-gray-600">
+                      Total Transactions
+                    </span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {workspaceStats.total_transactions}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-normal text-gray-600">
+                      Active Today
+                    </span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {workspaceStats.active_members_today}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-normal text-gray-600">
+                      Active This Week
+                    </span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {workspaceStats.active_members_this_week}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>
-            Common actions you can take right now
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex gap-4">
-          <Button asChild className="flex-1 md:flex-none bg-white border border-[#ebebeb] shadow-none text-gray-900 hover:bg-gray-50">
-            <Link href="/send">
-              <Send className="mr-2 h-4 w-4" />
-              {CURRENCY_PATTERNS.SEND_KARMA(currencyName)}
-            </Link>
-          </Button>
-          <Button asChild className="flex-1 md:flex-none bg-white border border-[#ebebeb] shadow-none text-gray-900 hover:bg-gray-50">
-            <Link href="/transactions">
-              <History className="mr-2 h-4 w-4" />
-              View History
-            </Link>
-          </Button>
-          <Button asChild className="hidden md:inline-flex bg-white border border-[#ebebeb] shadow-none text-gray-900 hover:bg-gray-50">
-            <Link href="/workspaces">
-              <Users className="mr-2 h-4 w-4" />
-              Workspace
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-
       {/* Recent Activity */}
-      <Card>
+      <Card className="border-[#ebebeb]">
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
-            Your latest {currencyName} transactions
+          <CardTitle className="text-lg font-medium">Recent Activity</CardTitle>
+          <CardDescription className="font-normal">
+            Latest {currencyName} transactions
           </CardDescription>
         </CardHeader>
         <CardContent>
           {recentTransactions.length > 0 ? (
             <div className="space-y-4">
               {recentTransactions.map((transaction) => {
-                const isSent = transaction.sender_profile_id === currentProfile.id;
-                const otherProfile = isSent ? transaction.receiver_profile : transaction.sender_profile;
-                
+                const isSent =
+                  transaction.sender_profile_id === currentProfile.id;
+                const otherProfile = isSent
+                  ? transaction.receiver_profile
+                  : transaction.sender_profile;
+
                 return (
-                  <div key={transaction.id} className="flex items-start space-x-4">
+                  <div
+                    key={transaction.id}
+                    className="flex items-start space-x-4"
+                  >
                     <div className="relative">
                       {otherProfile ? (
                         <UserAvatar user={otherProfile} size="md" />
                       ) : (
-                        <UserAvatar 
-                          user={{ email: 'Unknown', full_name: null, avatar_url: null }} 
-                          size="md" 
+                        <UserAvatar
+                          user={{
+                            email: 'Unknown',
+                            full_name: null,
+                            avatar_url: null,
+                          }}
+                          size="md"
                         />
                       )}
-                      <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center ${
-                        isSent ? 'bg-blue-500' : 'bg-green-500'
-                      }`}>
+                      <div
+                        className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center ${
+                          isSent ? 'bg-blue-500' : 'bg-green-500'
+                        }`}
+                      >
                         {isSent ? (
                           <ArrowUpRight className="h-2.5 w-2.5 text-white" />
                         ) : (
@@ -267,14 +677,19 @@ export default function DashboardHomePage() {
                     </div>
                     <div className="flex-1 space-y-1">
                       <p className="text-sm font-medium leading-none">
-                        {isSent ? 'You sent' : 'You received'} {formatCurrencyAmount(transaction.amount, currencyName)} {isSent ? 'to' : 'from'} {otherProfile ? getUserDisplayName(otherProfile) : 'Someone'}
+                        {isSent ? 'You sent' : 'You received'}{' '}
+                        {formatCurrencyAmount(transaction.amount, currencyName)}{' '}
+                        {isSent ? 'to' : 'from'}{' '}
+                        {otherProfile
+                          ? getUserDisplayName(otherProfile)
+                          : 'Someone'}
                       </p>
                       {transaction.message && (
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground font-normal">
                           &quot;{transaction.message}&quot;
                         </p>
                       )}
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground font-normal">
                         {formatTimeAgo(transaction.created_at)}
                       </p>
                     </div>
@@ -288,13 +703,14 @@ export default function DashboardHomePage() {
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 No transactions yet
               </h3>
-              <p className="text-gray-600 mb-4">
+              <p className="text-gray-600 mb-4 font-normal">
                 Start by sending some {currencyName} to your teammates!
               </p>
-              <Button asChild>
+              <Button asChild className="font-medium">
                 <Link href="/send">
                   <Send className="mr-2 h-4 w-4" />
-                  Send Your First {currencyName.charAt(0).toUpperCase() + currencyName.slice(1)}
+                  Send Your First{' '}
+                  {currencyName.charAt(0).toUpperCase() + currencyName.slice(1)}
                 </Link>
               </Button>
             </div>

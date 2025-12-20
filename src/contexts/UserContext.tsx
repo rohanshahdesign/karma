@@ -60,7 +60,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       } else if (event === 'SIGNED_OUT') {
         setProfile(null);
         setIsAuthenticated(false);
-        router.push('/login');
+        router.replace('/login');
       }
     });
 
