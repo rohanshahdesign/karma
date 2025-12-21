@@ -54,7 +54,7 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function ActivityChart({ data, currencyName }: ActivityChartProps) {
-  const [dateFilter, setDateFilter] = useState<DateFilter>('30days');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('7days');
 
   // Filter data based on selected date range
   const filteredData = useMemo(() => {
@@ -105,7 +105,8 @@ export function ActivityChart({ data, currencyName }: ActivityChartProps) {
       startDate.setHours(0, 0, 0, 0);
       endDate.setHours(0, 0, 0, 0);
 
-      return dataWithDates.filter((point) => {
+      // First, filter existing data to the date range
+      const filtered = dataWithDates.filter((point) => {
         if (!point.dateValue) return false;
 
         const pointDate = new Date(point.dateValue);
@@ -117,6 +118,41 @@ export function ActivityChart({ data, currencyName }: ActivityChartProps) {
           pointDate.getTime() <= endDate!.getTime()
         );
       });
+
+      // Fill in missing dates with zero values
+      const filledData: ChartDataPoint[] = [];
+      const currentDate = new Date(startDate);
+
+      while (currentDate <= endDate) {
+        const dateKey = currentDate.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        });
+
+        // Check if we have data for this date
+        const existingData = filtered.find((point) => {
+          if (!point.dateValue) return false;
+          const pointDate = new Date(point.dateValue);
+          pointDate.setHours(0, 0, 0, 0);
+          return pointDate.getTime() === currentDate.getTime();
+        });
+
+        if (existingData) {
+          filledData.push(existingData);
+        } else {
+          // Add zero values for missing dates
+          filledData.push({
+            date: dateKey,
+            sent: 0,
+            received: 0,
+            dateValue: new Date(currentDate),
+          });
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      return filledData;
     }
 
     return dataWithDates;
@@ -144,7 +180,6 @@ export function ActivityChart({ data, currencyName }: ActivityChartProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All time</SelectItem>
-                <SelectItem value="today">Today</SelectItem>
                 <SelectItem value="7days">Last 7 days</SelectItem>
                 <SelectItem value="30days">Last 30 days</SelectItem>
               </SelectContent>
@@ -181,7 +216,6 @@ export function ActivityChart({ data, currencyName }: ActivityChartProps) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All time</SelectItem>
-              <SelectItem value="today">Today</SelectItem>
               <SelectItem value="7days">Last 7 days</SelectItem>
               <SelectItem value="30days">Last 30 days</SelectItem>
             </SelectContent>

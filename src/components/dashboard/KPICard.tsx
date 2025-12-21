@@ -2,7 +2,8 @@
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { LucideIcon } from 'lucide-react';
+import { HugeiconsIcon } from '@hugeicons/react';
+import type { IconSvgElement } from '@hugeicons/react';
 import { cn } from '@/lib/utils';
 
 interface KPICardProps {
@@ -12,7 +13,7 @@ interface KPICardProps {
   target?: number;
   progress?: number;
   change?: number;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   iconColor?: string;
   valueColor?: string;
 }
@@ -24,7 +25,7 @@ export function KPICard({
   target,
   progress,
   change,
-  icon: Icon,
+  icon,
   iconColor = 'text-blue-600',
   valueColor = 'text-blue-600',
 }: KPICardProps) {
@@ -47,7 +48,7 @@ export function KPICard({
               </span>
             )}
           </div>
-          <Icon className={cn('h-4 w-4', iconColor)} />
+          <HugeiconsIcon icon={icon} size={16} className={cn(iconColor)} />
         </div>
         <div className="flex items-baseline justify-between mb-2">
           <span className={cn('text-3xl font-medium', valueColor)}>

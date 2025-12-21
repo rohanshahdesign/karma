@@ -3,20 +3,21 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  Home,
-  Send,
-  History,
-  Settings,
-  TrendingUp,
-  Menu,
-  X,
-  LogOut,
-  User,
-  ChevronUp,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
+  Home01Icon,
+  SentIcon,
+  Time02Icon,
+  Settings02Icon,
+  AnalyticsUpIcon,
+  Menu11Icon,
+  Cancel01Icon,
+  Logout03Icon,
+  User02Icon,
+  ArrowUp01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+} from '@hugeicons/core-free-icons';
 import { useUser } from '@/contexts/UserContext';
 import { supabase } from '@/lib/supabase';
 import { getWorkspaceClient } from '@/lib/database-client';
@@ -46,32 +47,32 @@ const navItems: NavItem[] = [
   {
     href: '/home',
     label: 'Home',
-    icon: Home,
+    icon: Home01Icon,
   },
   {
     href: '/transactions',
     label: 'History',
-    icon: History,
+    icon: Time02Icon,
   },
   {
     href: '/send',
     label: 'Send',
-    icon: Send,
+    icon: SentIcon,
   },
   {
     href: '/leaderboard',
     label: 'Leaderboard',
-    icon: TrendingUp,
+    icon: AnalyticsUpIcon,
   },
   {
     href: '/profile',
     label: 'Profile',
-    icon: User,
+    icon: User02Icon,
   },
   {
     href: '/workspaces',
     label: 'Workspace',
-    icon: Settings,
+    icon: Settings02Icon,
   },
 ];
 
@@ -141,9 +142,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
               }
             >
               {sidebarCollapsed ? (
-                <ChevronRight className="h-3.5 w-3.5" />
+                <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
               ) : (
-                <ChevronLeft className="h-3.5 w-3.5" />
+                <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
               )}
             </button>
           </div>
@@ -153,7 +154,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {/* Navigation */}
             <nav className="flex-1 space-y-1">
               {navItems.map((item) => {
-                const Icon = item.icon;
                 const active = isActive(item.href);
                 return (
                   <Link
@@ -168,8 +168,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     }`}
                     title={sidebarCollapsed ? item.label : undefined}
                   >
-                    <Icon
-                      className={`h-5 w-5 flex-shrink-0 ${
+                    <HugeiconsIcon
+                      icon={item.icon}
+                      size={20}
+                      className={`flex-shrink-0 ${
                         sidebarCollapsed ? '' : 'mr-3'
                       } ${
                         active
@@ -224,7 +226,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       className="flex items-center cursor-pointer hover:bg-gray-50"
                     >
                       <Link href="/profile">
-                        <User className="mr-2 h-4 w-4" />
+                        <HugeiconsIcon icon={User02Icon} size={16} className="mr-2" />
                         Profile Settings
                       </Link>
                     </DropdownMenuItem>
@@ -233,7 +235,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       className="flex items-center cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50"
                       onClick={handleLogout}
                     >
-                      <LogOut className="mr-2 h-4 w-4" />
+                      <HugeiconsIcon icon={Logout03Icon} size={16} className="mr-2" />
                       Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -257,7 +259,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                           </p>
                         </div>
                       </div>
-                      <ChevronUp className="h-4 w-4 text-gray-400" />
+                      <HugeiconsIcon icon={ArrowUp01Icon} size={16} className="text-gray-400" />
                     </div>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
@@ -270,7 +272,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       className="flex items-center cursor-pointer hover:bg-gray-50"
                     >
                       <Link href="/profile">
-                        <User className="mr-2 h-4 w-4" />
+                        <HugeiconsIcon icon={User02Icon} size={16} className="mr-2" />
                         Profile Settings
                       </Link>
                     </DropdownMenuItem>
@@ -279,7 +281,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       className="flex items-center cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50"
                       onClick={handleLogout}
                     >
-                      <LogOut className="mr-2 h-4 w-4" />
+                      <HugeiconsIcon icon={Logout03Icon} size={16} className="mr-2" />
                       Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -305,7 +307,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white transition-colors"
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <X className="h-6 w-6 text-white" />
+                  <HugeiconsIcon icon={Cancel01Icon} size={24} className="text-white" />
                 </button>
               </div>
               <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
@@ -316,7 +318,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 </div>
                 <nav className="mt-5 flex-1 px-2 space-y-1">
                   {navItems.map((item) => {
-                    const Icon = item.icon;
                     const active = isActive(item.href);
                     return (
                       <Link
@@ -329,8 +330,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         }`}
                         onClick={() => setSidebarOpen(false)}
                       >
-                        <Icon
-                          className={`mr-4 h-5 w-5 flex-shrink-0 ${
+                        <HugeiconsIcon
+                          icon={item.icon}
+                          size={20}
+                          className={`mr-4 flex-shrink-0 ${
                             active ? 'text-red-600' : 'text-gray-500'
                           }`}
                         />
@@ -393,7 +396,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             className="p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-50/80 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent transition-colors"
             onClick={() => setSidebarOpen(true)}
           >
-            <Menu className="h-6 w-6" />
+            <HugeiconsIcon icon={Menu11Icon} size={24} />
           </button>
           <div className="flex items-center">
             <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center">
@@ -416,7 +419,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-t border-[#ebebeb] z-50">
             <div className="flex">
               {navItems.map((item) => {
-                const Icon = item.icon;
                 const active = isActive(item.href);
                 return (
                   <Link
@@ -426,7 +428,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       active ? 'text-accent' : 'text-gray-600'
                     }`}
                   >
-                    <Icon className="h-5 w-5" />
+                    <HugeiconsIcon icon={item.icon} size={20} />
                     <span className="text-xs mt-1 font-normal">
                       {item.label}
                     </span>

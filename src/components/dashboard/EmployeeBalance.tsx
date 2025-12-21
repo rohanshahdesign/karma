@@ -1,7 +1,8 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { Coins, TrendingUp } from 'lucide-react';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { CoinsSwapIcon, AnalyticsUpIcon } from '@hugeicons/core-free-icons';
 
 interface EmployeeBalanceProps {
   redeemableBalance: number;
@@ -23,7 +24,7 @@ export function EmployeeBalance({
             <span className="text-sm font-normal text-gray-600">
               Accumulated {currencyName}
             </span>
-            <TrendingUp className="h-5 w-5 text-green-600" />
+            <HugeiconsIcon icon={AnalyticsUpIcon} size={20} className="text-green-600" />
           </div>
           <div className="text-4xl md:text-5xl font-thin text-green-600 mb-1">
             {redeemableBalance}
@@ -46,7 +47,7 @@ export function EmployeeBalance({
                 {givingBalance}
               </div>
             </div>
-            <Coins className="h-5 w-5 text-blue-600" />
+            <HugeiconsIcon icon={CoinsSwapIcon} size={20} className="text-blue-600" />
           </div>
         </CardContent>
       </Card>
