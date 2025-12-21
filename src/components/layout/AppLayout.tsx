@@ -20,9 +20,8 @@ import {
   ArrowRight01Icon,
 } from '@hugeicons/core-free-icons';
 import { useUser } from '@/contexts/UserContext';
+import { useAppData } from '@/contexts/AppDataProvider';
 import { supabase } from '@/lib/supabase';
-import { getWorkspaceClient } from '@/lib/database-client';
-import { Workspace } from '@/lib/supabase-types';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,12 +79,12 @@ const navItems: NavItem[] = [
 export default function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
   // Get profile and auth status from context
   const { profile: currentProfile, isAuthenticated, isLoading } = useUser();
+  const { currentWorkspace } = useAppData();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -93,15 +92,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);
-
-  // Load workspace data when profile is available
-  useEffect(() => {
-    if (currentProfile?.workspace_id) {
-      getWorkspaceClient(currentProfile.workspace_id)
-        .then(setWorkspace)
-        .catch((error) => console.error('Failed to load workspace:', error));
-    }
-  }, [currentProfile?.workspace_id]);
 
   const isActive = (href: string) => {
     return pathname === href || (href !== '/home' && pathname.startsWith(href));
@@ -129,11 +119,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <div className="flex-1 flex flex-col min-h-0 bg-white/80 backdrop-blur-sm border-r border-[#ebebeb] relative">
           {/* Workspace Switcher - Fixed at top, not scrollable */}
           <div className="flex items-center flex-shrink-0 px-2 pt-4 mb-6 relative pr-6">
-            {!sidebarCollapsed && (
-              <WorkspaceSwitcher
-                currentWorkspaceId={currentProfile?.workspace_id}
-              />
-            )}
+            <WorkspaceSwitcher
+              currentWorkspaceId={currentProfile?.workspace_id}
+              collapsed={sidebarCollapsed}
+            />
             {/* Collapse Toggle - positioned absolutely on right border */}
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -402,11 +391,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <div className="flex items-center">
             <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center">
               <span className="text-white font-light text-xs">
-                {workspace?.name?.charAt(0) || 'K'}
+                {currentWorkspace?.workspace_name?.charAt(0) || 'K'}
               </span>
             </div>
             <span className="ml-2 text-lg font-medium text-gray-900">
-              {workspace?.name || 'Workspace'}
+              {currentWorkspace?.workspace_name || 'Workspace'}
             </span>
           </div>
           <div className="w-8" /> {/* Spacer for centering */}

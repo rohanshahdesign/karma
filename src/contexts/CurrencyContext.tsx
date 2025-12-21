@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext } from 'react';
-import { useWorkspace } from './WorkspaceContext';
+import { useAppData } from './AppDataProvider';
 
 interface CurrencyContextType {
   currencyName: string;
@@ -12,14 +12,14 @@ interface CurrencyContextType {
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
-  const { currencyName, isLoading, refreshWorkspaceSettings } = useWorkspace();
+  const { currencyName, isLoading, refreshAppData } = useAppData();
 
   return (
     <CurrencyContext.Provider
       value={{
         currencyName,
         isLoading,
-        refreshCurrency: refreshWorkspaceSettings,
+        refreshCurrency: refreshAppData,
       }}
     >
       {children}

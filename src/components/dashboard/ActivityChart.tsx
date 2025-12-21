@@ -228,6 +228,7 @@ export function ActivityChart({ data, currencyName }: ActivityChartProps) {
           className="h-64 lg:h-full lg:aspect-auto w-full"
         >
           <AreaChart
+            key={dateFilter}
             accessibilityLayer
             data={filteredData}
             margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
@@ -317,6 +318,9 @@ export function ActivityChart({ data, currencyName }: ActivityChartProps) {
               fillOpacity={0.4}
               stroke="var(--color-received)"
               strokeWidth={1.5}
+              isAnimationActive={true}
+              animationDuration={800}
+              animationEasing="ease-in-out"
             />
             <Area
               dataKey="sent"
@@ -324,6 +328,9 @@ export function ActivityChart({ data, currencyName }: ActivityChartProps) {
               fillOpacity={0.4}
               stroke="var(--color-sent)"
               strokeWidth={1.5}
+              isAnimationActive={true}
+              animationDuration={800}
+              animationEasing="ease-in-out"
             />
             {filteredData[0]?.redeemed !== undefined && (
               <Area
@@ -332,6 +339,9 @@ export function ActivityChart({ data, currencyName }: ActivityChartProps) {
                 fillOpacity={0.4}
                 stroke="var(--color-redeemed)"
                 strokeWidth={1.5}
+                isAnimationActive={true}
+                animationDuration={800}
+                animationEasing="ease-in-out"
               />
             )}
           </AreaChart>

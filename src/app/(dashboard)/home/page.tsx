@@ -5,21 +5,15 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import {
-  getProfileBalance,
-  getDailyLimitInfo,
-  type BalanceInfo,
-  type DailyLimitInfo,
-} from '@/lib/balance';
-import {
   TransactionWithProfiles,
-  WorkspaceStats,
   Profile,
+  WorkspaceStats,
 } from '@/lib/supabase-types';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useUser } from '@/contexts/UserContext';
+import { useAppData } from '@/contexts/AppDataProvider';
 import { formatCurrencyAmount } from '@/lib/currency';
 import { isAdmin } from '@/lib/permissions-client';
-import { getWorkspaceStatsClient } from '@/lib/database-client';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -66,10 +60,7 @@ export default function DashboardHomePage() {
   const router = useRouter();
   const { currencyName } = useCurrency();
   const { profile: currentProfile, isLoading: isProfileLoading } = useUser();
-  const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null);
-  const [dailyLimitInfo, setDailyLimitInfo] = useState<DailyLimitInfo | null>(
-    null
-  );
+  const { balanceInfo, dailyLimitInfo, workspaceStats: contextWorkspaceStats } = useAppData();
   const [recentTransactions, setRecentTransactions] = useState<
     TransactionWithProfiles[]
   >([]);
@@ -84,26 +75,22 @@ export default function DashboardHomePage() {
   const [topContributors, setTopContributors] = useState<Contributor[]>([]);
   const [topContributorsDateFilter, setTopContributorsDateFilter] =
     useState<DateFilter>('30days');
-  const [loading, setLoading] = useState(true);
+  const [isLoadingTopContributors, setIsLoadingTopContributors] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isUserAdmin = isAdmin(currentProfile);
 
-  const loadDashboardData = useCallback(async () => {
+  // Load essential data (recent transactions and user stats)
+  const loadEssentialData = useCallback(async () => {
     if (!currentProfile) return;
 
     try {
-      setLoading(true);
       setError(null);
 
-      // Load balance information
-      const [balance, dailyLimit] = await Promise.all([
-        getProfileBalance(currentProfile.id),
-        getDailyLimitInfo(currentProfile.id),
-      ]);
-
-      setBalanceInfo(balance);
-      setDailyLimitInfo(dailyLimit);
+      // Set workspace stats from context if available
+      if (contextWorkspaceStats) {
+        setWorkspaceStats(contextWorkspaceStats);
+      }
 
       // Load recent transactions
       const { data: transactions } = await supabase
@@ -127,8 +114,7 @@ export default function DashboardHomePage() {
 
       setRecentTransactions(transactions || []);
 
-      // Calculate user's own stats (for both employee and admin dashboards)
-      // Calculate this month's sent/received for the current user
+      // Calculate user's own stats
       const monthStart = new Date();
       monthStart.setDate(1);
       monthStart.setHours(0, 0, 0, 0);
@@ -154,157 +140,228 @@ export default function DashboardHomePage() {
           total_received: received.reduce((sum, tx) => sum + tx.amount, 0),
         });
       }
+    } catch (err) {
+      console.error('Failed to load essential dashboard data:', err);
+      setError('Failed to load dashboard data');
+    }
+  }, [currentProfile, contextWorkspaceStats]);
 
-      // Load admin-specific data (workspace stats for charts, contributors, etc.)
-      if (isUserAdmin && currentProfile.workspace_id) {
-        // Load workspace stats for engagement metrics
+  // Load admin-specific data in background
+  const loadAdminData = useCallback(async () => {
+    if (!isUserAdmin || !currentProfile?.workspace_id) return;
+
+    try {
+      // Workspace stats fallback if not in context
+      if (!contextWorkspaceStats) {
         try {
-          const stats = await getWorkspaceStatsClient(
-            currentProfile.workspace_id
+          const [profilesResult, transactionsResult] = await Promise.all([
+            supabase
+              .from('profiles')
+              .select('id', { count: 'exact' })
+              .eq('workspace_id', currentProfile.workspace_id)
+              .eq('active', true),
+            supabase
+              .from('transactions')
+              .select(
+                'amount, created_at, sender_profile_id, receiver_profile_id'
+              )
+              .eq('workspace_id', currentProfile.workspace_id),
+          ]);
+
+          const totalMembers = profilesResult.count || 0;
+          const allTransactions = transactionsResult.data || [];
+          const totalTransactions = allTransactions.length;
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          const monthAgo = new Date(today);
+          monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+          const activeToday = new Set<string>();
+          const activeThisWeek = new Set<string>();
+          const activeThisMonth = new Set<string>();
+
+          allTransactions.forEach((tx) => {
+            const txDate = new Date(tx.created_at);
+            if (txDate >= today) {
+              activeToday.add(tx.sender_profile_id);
+              activeToday.add(tx.receiver_profile_id);
+            }
+            if (txDate >= weekAgo) {
+              activeThisWeek.add(tx.sender_profile_id);
+              activeThisWeek.add(tx.receiver_profile_id);
+            }
+            if (txDate >= monthAgo) {
+              activeThisMonth.add(tx.sender_profile_id);
+              activeThisMonth.add(tx.receiver_profile_id);
+            }
+          });
+
+          setWorkspaceStats({
+            total_members: totalMembers,
+            total_transactions: totalTransactions,
+            total_karma_sent: 0,
+            total_karma_received: 0,
+            active_members_today: activeToday.size,
+            active_members_this_week: activeThisWeek.size,
+            active_members_this_month: activeThisMonth.size,
+          });
+        } catch (fallbackErr) {
+          console.error(
+            'Failed to calculate workspace stats fallback:',
+            fallbackErr
           );
-          setWorkspaceStats(stats);
-        } catch (err) {
-          console.error('Failed to load workspace stats:', err);
-          // Fallback: calculate workspace stats manually if RPC function doesn't exist
-          try {
-            const [profilesResult, transactionsResult] = await Promise.all([
-              supabase
-                .from('profiles')
-                .select('id', { count: 'exact' })
-                .eq('workspace_id', currentProfile.workspace_id)
-                .eq('active', true),
-              supabase
-                .from('transactions')
-                .select(
-                  'amount, created_at, sender_profile_id, receiver_profile_id'
-                )
-                .eq('workspace_id', currentProfile.workspace_id),
-            ]);
+        }
+      }
 
-            const totalMembers = profilesResult.count || 0;
-            const allTransactions = transactionsResult.data || [];
-            const totalTransactions = allTransactions.length;
+      // Load chart data
+      try {
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const weekAgo = new Date(today);
-            weekAgo.setDate(weekAgo.getDate() - 7);
-            const monthAgo = new Date(today);
-            monthAgo.setMonth(monthAgo.getMonth() - 1);
+        const { data: allTransactions } = await supabase
+          .from('transactions')
+          .select(
+            'amount, created_at, sender_profile_id, receiver_profile_id'
+          )
+          .eq('workspace_id', currentProfile.workspace_id)
+          .gte('created_at', oneYearAgo.toISOString())
+          .order('created_at', { ascending: true });
 
-            const activeToday = new Set<string>();
-            const activeThisWeek = new Set<string>();
-            const activeThisMonth = new Set<string>();
+        if (allTransactions) {
+          const transactionsByDate: Map<
+            string,
+            { sent: number; received: number; dateValue: Date }
+          > = new Map();
 
-            allTransactions.forEach((tx) => {
-              const txDate = new Date(tx.created_at);
-              if (txDate >= today) {
-                activeToday.add(tx.sender_profile_id);
-                activeToday.add(tx.receiver_profile_id);
-              }
-              if (txDate >= weekAgo) {
-                activeThisWeek.add(tx.sender_profile_id);
-                activeThisWeek.add(tx.receiver_profile_id);
-              }
-              if (txDate >= monthAgo) {
-                activeThisMonth.add(tx.sender_profile_id);
-                activeThisMonth.add(tx.receiver_profile_id);
-              }
+          allTransactions.forEach((tx) => {
+            const txDate = new Date(tx.created_at);
+            const dateKey = txDate.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
             });
 
-            setWorkspaceStats({
-              total_members: totalMembers,
-              total_transactions: totalTransactions,
-              total_karma_sent: 0, // Not used for admin dashboard KPIs
-              total_karma_received: 0, // Not used for admin dashboard KPIs
-              active_members_today: activeToday.size,
-              active_members_this_week: activeThisWeek.size,
-              active_members_this_month: activeThisMonth.size,
-            });
-          } catch (fallbackErr) {
-            console.error(
-              'Failed to calculate workspace stats fallback:',
-              fallbackErr
+            const dateAtMidnight = new Date(
+              txDate.getFullYear(),
+              txDate.getMonth(),
+              txDate.getDate()
             );
-          }
-        }
 
-        // Load chart data (last year for filtering) - showing admin's personal activity
-        try {
-          const oneYearAgo = new Date();
-          oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-
-          const { data: allTransactions } = await supabase
-            .from('transactions')
-            .select(
-              'amount, created_at, sender_profile_id, receiver_profile_id'
-            )
-            .eq('workspace_id', currentProfile.workspace_id)
-            .gte('created_at', oneYearAgo.toISOString())
-            .order('created_at', { ascending: true });
-
-          if (allTransactions) {
-            // Store date objects with transactions for proper date handling
-            const transactionsByDate: Map<
-              string,
-              { sent: number; received: number; dateValue: Date }
-            > = new Map();
-
-            allTransactions.forEach((tx) => {
-              const txDate = new Date(tx.created_at);
-              const dateKey = txDate.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
+            if (!transactionsByDate.has(dateKey)) {
+              transactionsByDate.set(dateKey, {
+                sent: 0,
+                received: 0,
+                dateValue: dateAtMidnight,
               });
+            }
 
-              // Create date at midnight for consistent grouping
-              const dateAtMidnight = new Date(
-                txDate.getFullYear(),
-                txDate.getMonth(),
-                txDate.getDate()
-              );
+            const dayData = transactionsByDate.get(dateKey)!;
 
-              if (!transactionsByDate.has(dateKey)) {
-                transactionsByDate.set(dateKey, {
-                  sent: 0,
-                  received: 0,
-                  dateValue: dateAtMidnight,
-                });
-              }
+            if (tx.sender_profile_id === currentProfile.id) {
+              dayData.sent += tx.amount;
+            }
+            if (tx.receiver_profile_id === currentProfile.id) {
+              dayData.received += tx.amount;
+            }
+          });
 
-              const dayData = transactionsByDate.get(dateKey)!;
-
-              // Track admin's personal activity
-              if (tx.sender_profile_id === currentProfile.id) {
-                dayData.sent += tx.amount;
-              }
-              if (tx.receiver_profile_id === currentProfile.id) {
-                dayData.received += tx.amount;
-              }
+          const chartPoints: ChartDataPoint[] = Array.from(
+            transactionsByDate.entries()
+          )
+            .map(([date, data]) => ({
+              date,
+              sent: data.sent,
+              received: data.received,
+              dateValue: data.dateValue,
+            }))
+            .sort((a, b) => {
+              if (!a.dateValue || !b.dateValue) return 0;
+              return a.dateValue.getTime() - b.dateValue.getTime();
             });
 
-            const chartPoints: ChartDataPoint[] = Array.from(
-              transactionsByDate.entries()
-            )
-              .map(([date, data]) => ({
-                date,
-                sent: data.sent,
-                received: data.received,
-                dateValue: data.dateValue,
-              }))
-              .sort((a, b) => {
-                // Sort by dateValue to ensure chronological order
-                if (!a.dateValue || !b.dateValue) return 0;
-                return a.dateValue.getTime() - b.dateValue.getTime();
-              });
-
-            setChartData(chartPoints);
-          }
-        } catch (err) {
-          console.error('Failed to load chart data:', err);
+          setChartData(chartPoints);
         }
+      } catch (err) {
+        console.error('Failed to load chart data:', err);
+      }
 
-        // Load top contributors
+      // Load top contributors
+      try {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('workspace_id', currentProfile.workspace_id)
+          .eq('active', true);
+
+        if (profiles && profiles.length > 0) {
+          let dateFilter: { gte?: string } | undefined;
+          if (topContributorsDateFilter === '7days') {
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            dateFilter = { gte: sevenDaysAgo.toISOString() };
+          } else if (topContributorsDateFilter === '30days') {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            dateFilter = { gte: thirtyDaysAgo.toISOString() };
+          }
+
+          let query = supabase
+            .from('transactions')
+            .select('receiver_profile_id, amount')
+            .eq('workspace_id', currentProfile.workspace_id)
+            .in(
+              'receiver_profile_id',
+              profiles.map((p) => p.id)
+            );
+
+          if (dateFilter?.gte) {
+            query = query.gte('created_at', dateFilter.gte);
+          }
+
+          const { data: receivedTransactions } = await query;
+
+          const contributorMap = new Map<string, number>();
+          receivedTransactions?.forEach((tx) => {
+            const current = contributorMap.get(tx.receiver_profile_id) || 0;
+            contributorMap.set(tx.receiver_profile_id, current + tx.amount);
+          });
+
+          const contributors: Contributor[] = Array.from(
+            contributorMap.entries()
+          )
+            .map(([profileId, total]) => {
+              const profile = profiles.find((p) => p.id === profileId);
+              if (!profile) return null;
+              return {
+                profile: profile as Profile,
+                total_received: total,
+                rank: 0,
+              };
+            })
+            .filter((c): c is Contributor => c !== null)
+            .sort((a, b) => b.total_received - a.total_received)
+            .slice(0, 5)
+            .map((c, index) => ({ ...c, rank: index + 1 }));
+
+          setTopContributors(contributors);
+        }
+      } catch (err) {
+        console.error('Failed to load top contributors:', err);
+      }
+    } catch (err) {
+      console.error('Failed to load admin data:', err);
+    }
+  }, [currentProfile, isUserAdmin, topContributorsDateFilter, contextWorkspaceStats]);
+
+  // Handle top contributors filter change
+  useEffect(() => {
+    if (isUserAdmin && currentProfile?.workspace_id) {
+      setIsLoadingTopContributors(true);
+      
+      // Reload top contributors when filter changes
+      const loadTopContributors = async () => {
         try {
           const { data: profiles } = await supabase
             .from('profiles')
@@ -313,7 +370,6 @@ export default function DashboardHomePage() {
             .eq('active', true);
 
           if (profiles && profiles.length > 0) {
-            // Calculate date filter
             let dateFilter: { gte?: string } | undefined;
             if (topContributorsDateFilter === '7days') {
               const sevenDaysAgo = new Date();
@@ -324,7 +380,6 @@ export default function DashboardHomePage() {
               thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
               dateFilter = { gte: thirtyDaysAgo.toISOString() };
             }
-            // For 'all', dateFilter remains undefined
 
             let query = supabase
               .from('transactions')
@@ -356,7 +411,7 @@ export default function DashboardHomePage() {
                 return {
                   profile: profile as Profile,
                   total_received: total,
-                  rank: 0, // Will be set after sorting
+                  rank: 0,
                 };
               })
               .filter((c): c is Contributor => c !== null)
@@ -368,24 +423,41 @@ export default function DashboardHomePage() {
           }
         } catch (err) {
           console.error('Failed to load top contributors:', err);
+        } finally {
+          setIsLoadingTopContributors(false);
         }
-      }
-    } catch (err) {
-      console.error('Failed to load dashboard data:', err);
-      setError('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentProfile, isUserAdmin, topContributorsDateFilter]);
+      };
 
+      loadTopContributors();
+    }
+  }, [topContributorsDateFilter, currentProfile, isUserAdmin]);
+
+  // Load essential data on mount
   useEffect(() => {
     if (currentProfile) {
-      loadDashboardData();
+      loadEssentialData();
+      
+      // Load admin data in background (lazy loading)
+      if (isUserAdmin) {
+        // Use requestIdleCallback for lower priority loading
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          const id = (window as Window & typeof globalThis).requestIdleCallback(() => {
+            loadAdminData();
+          }, { timeout: 5000 });
+          return () => (window as Window & typeof globalThis).cancelIdleCallback(id);
+        } else {
+          // Fallback: load after a short delay
+          const timeoutId = setTimeout(() => {
+            loadAdminData();
+          }, 2000);
+          return () => clearTimeout(timeoutId);
+        }
+      }
     } else if (!isProfileLoading && !currentProfile) {
       // No profile found - redirect to login which will handle workspace check
       router.replace('/login');
     }
-  }, [currentProfile, isProfileLoading, loadDashboardData, router]);
+  }, [currentProfile, isProfileLoading, isUserAdmin, loadEssentialData, loadAdminData, router]);
 
   const formatTimeAgo = (dateString: string) => {
     const now = new Date();
@@ -401,7 +473,7 @@ export default function DashboardHomePage() {
     return date.toLocaleDateString();
   };
 
-  if (isProfileLoading || (loading && !balanceInfo)) {
+  if (isProfileLoading || !balanceInfo) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -419,7 +491,7 @@ export default function DashboardHomePage() {
           <p className="text-gray-600 mb-4 font-normal">
             {error || 'Unable to load your profile'}
           </p>
-          <Button onClick={loadDashboardData} className="font-medium">
+          <Button onClick={loadEssentialData} className="font-medium">
             Try Again
           </Button>
         </div>
@@ -634,6 +706,7 @@ export default function DashboardHomePage() {
             currencyName={currencyName}
             dateFilter={topContributorsDateFilter}
             onDateFilterChange={setTopContributorsDateFilter}
+            isLoading={isLoadingTopContributors}
           />
 
           {/* Engagement Metrics */}

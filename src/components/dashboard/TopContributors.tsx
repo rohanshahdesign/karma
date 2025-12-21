@@ -25,6 +25,7 @@ interface TopContributorsProps {
   currencyName: string;
   dateFilter: DateFilter;
   onDateFilterChange: (filter: DateFilter) => void;
+  isLoading?: boolean;
 }
 
 export function TopContributors({
@@ -32,12 +33,13 @@ export function TopContributors({
   currencyName,
   dateFilter,
   onDateFilterChange,
+  isLoading = false,
 }: TopContributorsProps) {
   return (
     <Card className="border-[#ebebeb]">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4">
         <CardTitle className="text-lg font-medium">Top Performers</CardTitle>
-        <Select value={dateFilter} onValueChange={onDateFilterChange}>
+        <Select value={dateFilter} onValueChange={onDateFilterChange} disabled={isLoading}>
           <SelectTrigger className="w-[140px] h-9">
             <SelectValue />
           </SelectTrigger>
@@ -48,11 +50,20 @@ export function TopContributors({
           </SelectContent>
         </Select>
       </CardHeader>
-      <CardContent className="px-4 pb-4 pt-0">
+      <CardContent className="px-4 pb-4 pt-0 relative">
         {!contributors || contributors.length === 0 ? (
           <p className="text-sm font-normal text-gray-500">No data available</p>
         ) : (
           <div className="space-y-3">
+            {/* Loading overlay */}
+            {isLoading && (
+              <div className="absolute inset-0 bg-white/50 flex items-center justify-center rounded-lg z-10">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                  <p className="text-sm text-gray-600">Loading performers...</p>
+                </div>
+              </div>
+            )}
             {contributors.map((contributor) => (
               <div
                 key={contributor.profile.id}

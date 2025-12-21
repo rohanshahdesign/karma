@@ -44,16 +44,9 @@ import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount, CURRENCY_PATTERNS } from '@/lib/currency';
 import { useUser } from '@/contexts/UserContext';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { useAppData } from '@/contexts/AppDataProvider';
+import type { WorkspaceMember } from '@/contexts/AppDataProvider';
 
-interface WorkspaceMember {
-  id: string;
-  full_name: string | null;
-  email: string;
-  role: string;
-  department: string | null;
-  active: boolean;
-}
 
 const PREDEFINED_REASONS = [
   'Great teamwork',
@@ -76,7 +69,7 @@ const PREDEFINED_REASONS = [
 export default function SendKarmaPage() {
   const { currencyName } = useCurrency();
   const { profile: currentProfile, isLoading: isProfileLoading } = useUser();
-  const { workspaceSettings } = useWorkspace();
+  const { workspaceSettings, balanceInfo: contextBalance, dailyLimitInfo: contextDailyLimit, workspaceMembers } = useAppData();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [selectedMember, setSelectedMember] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
@@ -100,27 +93,12 @@ export default function SendKarmaPage() {
       setLoading(true);
       setError(null);
 
-      // Load balance and limit info
-      const [balance, dailyLimit] = await Promise.all([
-        getProfileBalance(currentProfile.id),
-        getDailyLimitInfo(currentProfile.id),
-      ]);
-      setBalanceInfo(balance);
-      setDailyLimitInfo(dailyLimit);
+      // Use context data for balance and daily limit (already loaded in AppDataProvider)
+      setBalanceInfo(contextBalance);
+      setDailyLimitInfo(contextDailyLimit);
 
-      // Load workspace members
-      const { data: membersData, error: membersError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role, department, active')
-        .eq('workspace_id', currentProfile.workspace_id)
-        .eq('active', true)
-        .neq('id', currentProfile.id)
-        .order('full_name');
-
-      if (membersError) throw membersError;
-
-      // Filter members based on current user's role
-      let filteredMembers = membersData || [];
+      // Filter members from context based on current user's role and excluded current user
+      let filteredMembers = workspaceMembers.filter(m => m.id !== currentProfile.id);
       if (currentProfile.role === 'employee') {
         // Employees can only send to members from different departments
         filteredMembers = filteredMembers.filter(
@@ -136,7 +114,7 @@ export default function SendKarmaPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentProfile]);
+  }, [currentProfile, contextBalance, contextDailyLimit, workspaceMembers]);
 
   const validateCurrentTransaction = useCallback(async () => {
     if (

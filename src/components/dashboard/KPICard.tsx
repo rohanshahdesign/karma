@@ -48,7 +48,7 @@ export function KPICard({
               </span>
             )}
           </div>
-          <HugeiconsIcon icon={icon} size={16} className={cn(iconColor)} />
+          <HugeiconsIcon icon={icon} size={32} className={cn(iconColor)} />
         </div>
         <div className="flex items-baseline justify-between mb-2">
           <span className={cn('text-3xl font-medium', valueColor)}>
