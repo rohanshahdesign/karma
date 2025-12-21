@@ -49,6 +49,7 @@ interface ChartDataPoint {
   sent: number;
   received: number;
   redeemed?: number;
+  dateValue?: Date;
 }
 
 interface Contributor {
@@ -222,10 +223,10 @@ export default function DashboardHomePage() {
           }
         }
 
-        // Load chart data (last 30 days) - showing admin's personal activity
+        // Load chart data (last year for filtering) - showing admin's personal activity
         try {
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          const oneYearAgo = new Date();
+          oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
           const { data: allTransactions } = await supabase
             .from('transactions')
@@ -233,41 +234,63 @@ export default function DashboardHomePage() {
               'amount, created_at, sender_profile_id, receiver_profile_id'
             )
             .eq('workspace_id', currentProfile.workspace_id)
-            .gte('created_at', thirtyDaysAgo.toISOString())
+            .gte('created_at', oneYearAgo.toISOString())
             .order('created_at', { ascending: true });
 
           if (allTransactions) {
-            // Group by date - track admin's personal sent and received
-            const dailyData: Record<
+            // Store date objects with transactions for proper date handling
+            const transactionsByDate: Map<
               string,
-              { sent: number; received: number }
-            > = {};
+              { sent: number; received: number; dateValue: Date }
+            > = new Map();
 
             allTransactions.forEach((tx) => {
-              const date = new Date(tx.created_at).toLocaleDateString('en-US', {
+              const txDate = new Date(tx.created_at);
+              const dateKey = txDate.toLocaleDateString('en-US', {
                 month: 'short',
                 day: 'numeric',
               });
-              if (!dailyData[date]) {
-                dailyData[date] = { sent: 0, received: 0 };
+
+              // Create date at midnight for consistent grouping
+              const dateAtMidnight = new Date(
+                txDate.getFullYear(),
+                txDate.getMonth(),
+                txDate.getDate()
+              );
+
+              if (!transactionsByDate.has(dateKey)) {
+                transactionsByDate.set(dateKey, {
+                  sent: 0,
+                  received: 0,
+                  dateValue: dateAtMidnight,
+                });
               }
+
+              const dayData = transactionsByDate.get(dateKey)!;
 
               // Track admin's personal activity
               if (tx.sender_profile_id === currentProfile.id) {
-                dailyData[date].sent += tx.amount;
+                dayData.sent += tx.amount;
               }
               if (tx.receiver_profile_id === currentProfile.id) {
-                dailyData[date].received += tx.amount;
+                dayData.received += tx.amount;
               }
             });
 
-            const chartPoints: ChartDataPoint[] = Object.entries(dailyData).map(
-              ([date, data]) => ({
+            const chartPoints: ChartDataPoint[] = Array.from(
+              transactionsByDate.entries()
+            )
+              .map(([date, data]) => ({
                 date,
                 sent: data.sent,
                 received: data.received,
-              })
-            );
+                dateValue: data.dateValue,
+              }))
+              .sort((a, b) => {
+                // Sort by dateValue to ensure chronological order
+                if (!a.dateValue || !b.dateValue) return 0;
+                return a.dateValue.getTime() - b.dateValue.getTime();
+              });
 
             setChartData(chartPoints);
           }
@@ -569,13 +592,13 @@ export default function DashboardHomePage() {
       )}
 
       {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart Area */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-stretch">
+        {/* Chart Area - Stretches to match right sidebar height */}
         <div className="lg:col-span-2">
           <ActivityChart data={chartData} currencyName={currencyName} />
         </div>
 
-        {/* Right Sidebar */}
+        {/* Right Sidebar - Natural content height, determines chart height */}
         <div className="space-y-6">
           <TopContributors
             contributors={topContributors}

@@ -24,9 +24,7 @@ export function TopContributors({
     return (
       <Card className="border-[#ebebeb]">
         <CardHeader>
-          <CardTitle className="text-lg font-medium">
-            Top Contributors
-          </CardTitle>
+          <CardTitle className="text-lg font-medium">Top Performers</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm font-normal text-gray-500">No data available</p>
@@ -38,7 +36,7 @@ export function TopContributors({
   return (
     <Card className="border-[#ebebeb]">
       <CardHeader>
-        <CardTitle className="text-lg font-medium">Top Contributors</CardTitle>
+        <CardTitle className="text-lg font-medium">Top Performers</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">

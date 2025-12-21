@@ -120,40 +120,38 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <div className="min-h-screen bg-gray-50">
       {/* Desktop Sidebar */}
       <div
-        className={`hidden md:flex md:flex-col md:fixed md:inset-y-0 transition-all duration-300 ${
+        className={`hidden md:flex md:flex-col md:fixed md:inset-y-0 transition-all duration-300 overflow-visible ${
           sidebarCollapsed ? 'md:w-16' : 'md:w-64'
         }`}
       >
-        <div className="flex-1 flex flex-col min-h-0 bg-white/80 backdrop-blur-sm border-r border-[#ebebeb]">
-          <div className="flex-1 flex flex-col pt-4 pb-4 overflow-y-auto">
-            {/* Collapse Toggle */}
-            <div className="flex items-center justify-end px-2 mb-4">
-              <button
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-900"
-                aria-label={
-                  sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
-                }
-              >
-                {sidebarCollapsed ? (
-                  <ChevronRight className="h-4 w-4" />
-                ) : (
-                  <ChevronLeft className="h-4 w-4" />
-                )}
-              </button>
-            </div>
-
-            {/* Workspace Switcher */}
+        <div className="flex-1 flex flex-col min-h-0 bg-white/80 backdrop-blur-sm border-r border-[#ebebeb] relative">
+          {/* Workspace Switcher - Fixed at top, not scrollable */}
+          <div className="flex items-center flex-shrink-0 px-2 pt-4 mb-6 relative pr-6">
             {!sidebarCollapsed && (
-              <div className="flex items-center flex-shrink-0 px-2 mb-6">
-                <WorkspaceSwitcher
-                  currentWorkspaceId={currentProfile?.workspace_id}
-                />
-              </div>
+              <WorkspaceSwitcher
+                currentWorkspaceId={currentProfile?.workspace_id}
+              />
             )}
+            {/* Collapse Toggle - positioned absolutely on right border */}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="absolute right-0 top-6 p-1.5 rounded-full bg-white border border-[#ebebeb] hover:bg-gray-50 transition-colors text-gray-600 hover:text-gray-900 shadow-sm z-10 translate-x-1/2"
+              aria-label={
+                sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
+              }
+            >
+              {sidebarCollapsed ? (
+                <ChevronRight className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronLeft className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </div>
 
+          {/* Scrollable Navigation Area */}
+          <div className="flex-1 flex flex-col overflow-y-auto px-2 pb-4">
             {/* Navigation */}
-            <nav className="flex-1 px-2 space-y-1">
+            <nav className="flex-1 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
@@ -161,10 +159,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`group flex items-center px-2 py-2.5 text-sm font-light rounded-lg transition-colors ${
+                    className={`group flex items-center ${
+                      sidebarCollapsed ? 'justify-center' : ''
+                    } px-2 py-2.5 text-sm rounded-lg transition-colors ${
                       active
-                        ? 'bg-accent/10 text-accent'
-                        : 'text-gray-600 hover:bg-gray-50/80 hover:text-gray-900'
+                        ? 'bg-red-50 text-red-600 font-medium'
+                        : 'text-gray-700 hover:bg-gray-50/80 hover:text-gray-900 font-normal'
                     }`}
                     title={sidebarCollapsed ? item.label : undefined}
                   >
@@ -173,15 +173,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         sidebarCollapsed ? '' : 'mr-3'
                       } ${
                         active
-                          ? 'text-accent'
-                          : 'text-gray-400 group-hover:text-gray-500'
+                          ? 'text-red-600'
+                          : 'text-gray-500 group-hover:text-gray-700'
                       }`}
                     />
                     {!sidebarCollapsed && (
                       <>
                         <span className="flex-1">{item.label}</span>
                         {item.badge && (
-                          <span className="ml-auto inline-flex items-center justify-center px-2 py-0.5 text-xs font-normal leading-4 text-white bg-red-500 rounded-full">
+                          <span className="ml-auto inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium leading-4 text-white bg-red-500 rounded-full">
                             {item.badge}
                           </span>
                         )}
@@ -211,10 +211,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     className="w-56 border-[#ebebeb]"
                   >
                     <div className="px-2 py-1.5">
-                      <p className="text-sm font-light text-gray-700">
+                      <p className="text-sm font-medium text-gray-900">
                         {getUserDisplayName(currentProfile)}
                       </p>
-                      <p className="text-xs font-light text-gray-500 capitalize">
+                      <p className="text-xs font-normal text-gray-600 capitalize">
                         {currentProfile.role.replace('_', ' ')}
                       </p>
                     </div>
@@ -249,10 +249,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
                           clickable={false}
                         />
                         <div className="ml-3">
-                          <p className="text-sm font-light text-gray-700 text-left">
+                          <p className="text-sm font-medium text-gray-900 text-left">
                             {getUserDisplayName(currentProfile)}
                           </p>
-                          <p className="text-xs font-light text-gray-500 capitalize text-left">
+                          <p className="text-xs font-normal text-gray-600 capitalize text-left">
                             {currentProfile.role.replace('_', ' ')}
                           </p>
                         </div>
@@ -322,21 +322,21 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`group flex items-center px-2 py-2.5 text-base font-light rounded-lg transition-colors ${
+                        className={`group flex items-center px-2 py-2.5 text-base rounded-lg transition-colors ${
                           active
-                            ? 'bg-accent/10 text-accent hover:bg-gray-50/80'
-                            : 'text-gray-600 hover:bg-gray-50/80 hover:text-gray-900'
+                            ? 'bg-red-50 text-red-600 font-medium hover:bg-red-50/80'
+                            : 'text-gray-700 hover:bg-gray-50/80 hover:text-gray-900 font-normal'
                         }`}
                         onClick={() => setSidebarOpen(false)}
                       >
                         <Icon
                           className={`mr-4 h-5 w-5 flex-shrink-0 ${
-                            active ? 'text-accent' : 'text-gray-400'
+                            active ? 'text-red-600' : 'text-gray-500'
                           }`}
                         />
                         {item.label}
                         {item.badge && (
-                          <span className="ml-auto inline-flex items-center justify-center px-2 py-0.5 text-xs font-normal leading-4 text-white bg-red-500 rounded-full">
+                          <span className="ml-auto inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium leading-4 text-white bg-red-500 rounded-full">
                             {item.badge}
                           </span>
                         )}
@@ -358,17 +358,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       clickable={false}
                     />
                     <div className="ml-3">
-                      <p className="text-sm font-light text-gray-700">
+                      <p className="text-sm font-medium text-gray-900">
                         {getUserDisplayName(currentProfile)}
                       </p>
-                      <p className="text-xs font-light text-gray-500 capitalize">
+                      <p className="text-xs font-normal text-gray-600 capitalize">
                         {currentProfile.role.replace('_', ' ')}
                       </p>
                     </div>
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center px-3 py-2 text-sm font-light text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
@@ -401,7 +401,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 {workspace?.name?.charAt(0) || 'K'}
               </span>
             </div>
-            <span className="ml-2 text-lg font-light text-gray-900">
+            <span className="ml-2 text-lg font-medium text-gray-900">
               {workspace?.name || 'Workspace'}
             </span>
           </div>
@@ -427,7 +427,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     }`}
                   >
                     <Icon className="h-5 w-5" />
-                    <span className="text-xs mt-1 font-light">
+                    <span className="text-xs mt-1 font-normal">
                       {item.label}
                     </span>
                   </Link>

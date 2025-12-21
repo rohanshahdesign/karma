@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -7,6 +8,13 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import {
   ChartConfig,
@@ -20,7 +28,10 @@ interface ChartDataPoint {
   sent: number;
   received: number;
   redeemed?: number;
+  dateValue?: Date; // Store actual date for filtering
 }
+
+type DateFilter = 'all' | 'today' | '7days' | '30days';
 
 interface ActivityChartProps {
   data: ChartDataPoint[];
@@ -43,19 +54,105 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function ActivityChart({ data, currencyName }: ActivityChartProps) {
+  const [dateFilter, setDateFilter] = useState<DateFilter>('30days');
+
+  // Filter data based on selected date range
+  const filteredData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+
+    // Ensure all data points have dateValue
+    const dataWithDates = data.map((point) => {
+      if (!point.dateValue) {
+        // Fallback: try to parse the date string
+        // This shouldn't happen if data is created correctly
+        return {
+          ...point,
+          dateValue: new Date(point.date),
+        };
+      }
+      return point;
+    });
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    today.setHours(0, 0, 0, 0);
+
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
+
+    switch (dateFilter) {
+      case 'today':
+        startDate = new Date(today);
+        endDate = new Date(today);
+        break;
+      case '7days':
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 7); // Exactly 7 days back
+        endDate = new Date(today);
+        break;
+      case '30days':
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 30); // Exactly 30 days back
+        endDate = new Date(today);
+        break;
+      case 'all':
+      default:
+        return dataWithDates;
+    }
+
+    if (startDate && endDate) {
+      // Normalize dates to midnight for comparison
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+
+      return dataWithDates.filter((point) => {
+        if (!point.dateValue) return false;
+
+        const pointDate = new Date(point.dateValue);
+        pointDate.setHours(0, 0, 0, 0);
+
+        // Compare dates at midnight for accurate comparison
+        return (
+          pointDate.getTime() >= startDate!.getTime() &&
+          pointDate.getTime() <= endDate!.getTime()
+        );
+      });
+    }
+
+    return dataWithDates;
+  }, [data, dateFilter]);
+
   if (!data || data.length === 0) {
     return (
-      <Card className="border-[#ebebeb]">
-        <CardHeader>
-          <CardTitle className="text-lg font-medium">
-            {currencyName} Activity Trend
-          </CardTitle>
-          <CardDescription className="font-normal">
-            Daily {currencyName} flow and redemptions
-          </CardDescription>
+      <Card className="border-[#ebebeb] lg:flex lg:flex-col lg:h-full">
+        <CardHeader className="lg:flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg font-medium">
+                {currencyName} Activity Trend
+              </CardTitle>
+              <CardDescription className="font-normal">
+                Daily {currencyName} flow and redemptions
+              </CardDescription>
+            </div>
+            <Select
+              value={dateFilter}
+              onValueChange={(value) => setDateFilter(value as DateFilter)}
+            >
+              <SelectTrigger className="w-[140px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="7days">Last 7 days</SelectItem>
+                <SelectItem value="30days">Last 30 days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="h-64 flex items-center justify-center text-gray-400 text-sm font-normal">
+        <CardContent className="px-0 pb-4 pt-0 lg:flex-1 lg:min-h-0">
+          <div className="h-64 lg:h-full flex items-center justify-center text-gray-400 text-sm font-normal">
             No data available
           </div>
         </CardContent>
@@ -64,21 +161,42 @@ export function ActivityChart({ data, currencyName }: ActivityChartProps) {
   }
 
   return (
-    <Card className="border-[#ebebeb]">
-      <CardHeader>
-        <CardTitle className="text-lg font-medium">
-          {currencyName} Activity Trend
-        </CardTitle>
-        <CardDescription className="font-normal">
-          Daily {currencyName} flow and redemptions
-        </CardDescription>
+    <Card className="border-[#ebebeb] lg:flex lg:flex-col lg:h-full">
+      <CardHeader className="lg:flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg font-medium">
+              {currencyName} Activity Trend
+            </CardTitle>
+            <CardDescription className="font-normal">
+              Daily {currencyName} flow and redemptions
+            </CardDescription>
+          </div>
+          <Select
+            value={dateFilter}
+            onValueChange={(value) => setDateFilter(value as DateFilter)}
+          >
+            <SelectTrigger className="w-[140px] h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All time</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="7days">Last 7 days</SelectItem>
+              <SelectItem value="30days">Last 30 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
-      <CardContent className="px-0 pb-4 pt-0">
-        <ChartContainer config={chartConfig} className="h-64 w-full">
+      <CardContent className="px-0 pb-4 pt-0 lg:flex-1 lg:min-h-0">
+        <ChartContainer
+          config={chartConfig}
+          className="h-64 lg:h-full lg:aspect-auto w-full"
+        >
           <AreaChart
             accessibilityLayer
-            data={data}
-            margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
+            data={filteredData}
+            margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
           >
             <CartesianGrid
               vertical={false}
@@ -173,7 +291,7 @@ export function ActivityChart({ data, currencyName }: ActivityChartProps) {
               stroke="var(--color-sent)"
               strokeWidth={1.5}
             />
-            {data[0]?.redeemed !== undefined && (
+            {filteredData[0]?.redeemed !== undefined && (
               <Area
                 dataKey="redeemed"
                 fill="url(#gradient-chart-redeemed)"
