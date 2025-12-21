@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { HugeiconsIcon } from '@hugeicons/react';
+import type { IconSvgElement } from '@hugeicons/react';
 import {
   Home01Icon,
   SentIcon,
@@ -12,7 +13,7 @@ import {
   AnalyticsUpIcon,
   Menu11Icon,
   Cancel01Icon,
-  Logout03Icon,
+  Logout05Icon,
   User02Icon,
   ArrowUp01Icon,
   ArrowLeft01Icon,
@@ -39,7 +40,7 @@ interface AppLayoutProps {
 interface NavItem {
   href: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: IconSvgElement;
   badge?: number;
 }
 
@@ -235,7 +236,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       className="flex items-center cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50"
                       onClick={handleLogout}
                     >
-                      <HugeiconsIcon icon={Logout03Icon} size={16} className="mr-2" />
+                      <HugeiconsIcon icon={Logout05Icon} size={16} className="mr-2" />
                       Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -281,7 +282,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       className="flex items-center cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50"
                       onClick={handleLogout}
                     >
-                      <HugeiconsIcon icon={Logout03Icon} size={16} className="mr-2" />
+                      <HugeiconsIcon icon={Logout05Icon} size={16} className="mr-2" />
                       Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -373,7 +374,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     onClick={handleLogout}
                     className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
+                    <HugeiconsIcon icon={Logout05Icon} size={16} className="mr-2" />
                     Logout
                   </button>
                 </div>
