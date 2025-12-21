@@ -24,35 +24,39 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      // For multi-workspace support: check if user has any profiles
-      // Use limit(1) instead of maybeSingle() to handle multiple workspace profiles correctly
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, workspace_id')
-        .eq('auth_user_id', user.id)
-        .limit(1);
+      // Check if user has any workspaces using get_user_workspaces RPC
+      const { data: workspaces, error: workspacesError } = await supabase.rpc('get_user_workspaces');
+      
+      if (workspacesError) {
+        console.error('Error fetching workspaces:', workspacesError);
+        // On error, redirect to login page which will handle the check
+        router.replace('/login');
+        return;
+      }
 
-      if (profiles && profiles.length > 0) {
-        // User has at least one workspace/profile, set preference if not already set
+      if (workspaces && workspaces.length > 0) {
+        // User has 1 or more workspaces - redirect to /home
+        const firstWorkspace = workspaces[0];
+        
+        // Set the first workspace as current if no preference exists
         const { data: preferences } = await supabase
           .from('user_preferences')
           .select('current_workspace_id')
           .eq('auth_user_id', user.id)
           .maybeSingle();
         
-        // If user doesn't have a workspace preference, set the first workspace as current
         if (!preferences?.current_workspace_id) {
           await supabase
             .from('user_preferences')
             .upsert({
               auth_user_id: user.id,
-              current_workspace_id: profiles[0].workspace_id
+              current_workspace_id: firstWorkspace.workspace_id
             });
         }
         
         router.replace('/home');
       } else {
-        // No profiles exist - user needs to complete onboarding
+        // No workspaces found - redirect to login, which will then redirect to onboarding
         // Extract Google profile data from user metadata
         const fullName = user.user_metadata?.full_name || user.user_metadata?.name;
         const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture;
@@ -66,7 +70,8 @@ export default function AuthCallbackPage() {
             full_name: fullName,
             avatar_url: avatarUrl
           });
-        router.replace('/onboarding');
+        // Redirect to login, which will check and redirect to onboarding
+        router.replace('/login');
       }
     };
     void handle();

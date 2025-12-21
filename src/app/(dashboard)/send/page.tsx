@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { 
-  getProfileBalance, 
-  getDailyLimitInfo, 
+import {
+  getProfileBalance,
+  getDailyLimitInfo,
   validateTransactionOptimized,
   executeTransaction,
-  type BalanceInfo, 
+  type BalanceInfo,
   type DailyLimitInfo,
-  type TransactionValidation
+  type TransactionValidation,
 } from '@/lib/balance';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,20 +44,13 @@ import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatCurrencyAmount, CURRENCY_PATTERNS } from '@/lib/currency';
 import { useUser } from '@/contexts/UserContext';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { useAppData } from '@/contexts/AppDataProvider';
+import type { WorkspaceMember } from '@/contexts/AppDataProvider';
 
-interface WorkspaceMember {
-  id: string;
-  full_name: string | null;
-  email: string;
-  role: string;
-  department: string | null;
-  active: boolean;
-}
 
 const PREDEFINED_REASONS = [
   'Great teamwork',
-  'Code review', 
+  'Code review',
   'Helping a colleague',
   'Going above and beyond',
   'Creative solution',
@@ -76,7 +69,7 @@ const PREDEFINED_REASONS = [
 export default function SendKarmaPage() {
   const { currencyName } = useCurrency();
   const { profile: currentProfile, isLoading: isProfileLoading } = useUser();
-  const { workspaceSettings } = useWorkspace();
+  const { workspaceSettings, balanceInfo: contextBalance, dailyLimitInfo: contextDailyLimit, workspaceMembers } = useAppData();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [selectedMember, setSelectedMember] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
@@ -85,8 +78,12 @@ export default function SendKarmaPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null);
-  const [dailyLimitInfo, setDailyLimitInfo] = useState<DailyLimitInfo | null>(null);
-  const [validation, setValidation] = useState<TransactionValidation | null>(null);
+  const [dailyLimitInfo, setDailyLimitInfo] = useState<DailyLimitInfo | null>(
+    null
+  );
+  const [validation, setValidation] = useState<TransactionValidation | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
 
   const loadInitialData = useCallback(async () => {
@@ -96,35 +93,20 @@ export default function SendKarmaPage() {
       setLoading(true);
       setError(null);
 
-      // Load balance and limit info
-      const [balance, dailyLimit] = await Promise.all([
-        getProfileBalance(currentProfile.id),
-        getDailyLimitInfo(currentProfile.id),
-      ]);
-      setBalanceInfo(balance);
-      setDailyLimitInfo(dailyLimit);
+      // Use context data for balance and daily limit (already loaded in AppDataProvider)
+      setBalanceInfo(contextBalance);
+      setDailyLimitInfo(contextDailyLimit);
 
-      // Load workspace members
-      const { data: membersData, error: membersError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role, department, active')
-        .eq('workspace_id', currentProfile.workspace_id)
-        .eq('active', true)
-        .neq('id', currentProfile.id)
-        .order('full_name');
-
-      if (membersError) throw membersError;
-      
-      // Filter members based on current user's role
-      let filteredMembers = membersData || [];
+      // Filter members from context based on current user's role and excluded current user
+      let filteredMembers = workspaceMembers.filter(m => m.id !== currentProfile.id);
       if (currentProfile.role === 'employee') {
         // Employees can only send to members from different departments
         filteredMembers = filteredMembers.filter(
-          member => member.department !== currentProfile.department
+          (member) => member.department !== currentProfile.department
         );
       }
       // Admins and super_admins have no restrictions
-      
+
       setMembers(filteredMembers);
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -132,10 +114,16 @@ export default function SendKarmaPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentProfile]);
+  }, [currentProfile, contextBalance, contextDailyLimit, workspaceMembers]);
 
   const validateCurrentTransaction = useCallback(async () => {
-    if (!currentProfile || !selectedMember || !amount || !dailyLimitInfo || !workspaceSettings) {
+    if (
+      !currentProfile ||
+      !selectedMember ||
+      !amount ||
+      !dailyLimitInfo ||
+      !workspaceSettings
+    ) {
       setValidation(null);
       return;
     }
@@ -152,10 +140,10 @@ export default function SendKarmaPage() {
 
     try {
       const result = await validateTransactionOptimized(
-        { 
-          id: currentProfile.id, 
-          giving_balance: currentProfile.giving_balance, 
-          workspace_id: currentProfile.workspace_id 
+        {
+          id: currentProfile.id,
+          giving_balance: currentProfile.giving_balance,
+          workspace_id: currentProfile.workspace_id,
         },
         selectedMember,
         numericAmount,
@@ -170,11 +158,17 @@ export default function SendKarmaPage() {
         warnings: [],
       });
     }
-  }, [currentProfile, selectedMember, amount, dailyLimitInfo, workspaceSettings]);
+  }, [
+    currentProfile,
+    selectedMember,
+    amount,
+    dailyLimitInfo,
+    workspaceSettings,
+  ]);
 
   const handleSendKarma = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!currentProfile || !selectedMember || !amount || !validation?.valid) {
       return;
     }
@@ -187,8 +181,9 @@ export default function SendKarmaPage() {
     setSending(true);
     try {
       const numericAmount = parseInt(amount);
-      const reason = selectedReason === 'other' ? customReason.trim() : selectedReason;
-      
+      const reason =
+        selectedReason === 'other' ? customReason.trim() : selectedReason;
+
       await executeTransaction(
         currentProfile.id,
         selectedMember,
@@ -199,10 +194,13 @@ export default function SendKarmaPage() {
       toast.success(
         <div className="flex items-center space-x-2">
           <CheckCircle className="h-5 w-5 text-green-600" />
-          <span>Successfully sent {formatCurrencyAmount(numericAmount, currencyName)}!</span>
+          <span>
+            Successfully sent{' '}
+            {formatCurrencyAmount(numericAmount, currencyName)}!
+          </span>
         </div>
       );
-      
+
       // Reset form
       setSelectedMember('');
       setAmount('');
@@ -219,21 +217,26 @@ export default function SendKarmaPage() {
         setBalanceInfo(balance);
         setDailyLimitInfo(dailyLimit);
       }
-      
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `Failed to send ${currencyName}`);
+      toast.error(
+        err instanceof Error ? err.message : `Failed to send ${currencyName}`
+      );
     } finally {
       setSending(false);
     }
   };
 
   const getSelectedMemberInfo = () => {
-    return members.find(m => m.id === selectedMember);
+    return members.find((m) => m.id === selectedMember);
   };
 
   const getInitials = (name: string | null, email: string) => {
     if (name) {
-      return name.split(' ').map(n => n[0]).join('').toUpperCase();
+      return name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase();
     }
     return email.substring(0, 2).toUpperCase();
   };
@@ -264,8 +267,12 @@ export default function SendKarmaPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
-          <p className="text-gray-600 mb-4">{error || 'Unable to load your profile'}</p>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Something went wrong
+          </h2>
+          <p className="text-gray-600 mb-4">
+            {error || 'Unable to load your profile'}
+          </p>
           <Button onClick={loadInitialData}>Try Again</Button>
         </div>
       </div>
@@ -289,14 +296,18 @@ export default function SendKarmaPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Available to Give</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Available to Give
+              </CardTitle>
               <Coins className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
                 {balanceInfo.giving_balance}
               </div>
-              <p className="text-xs text-muted-foreground">{currencyName} points</p>
+              <p className="text-xs text-muted-foreground">
+                {currencyName} points
+              </p>
             </CardContent>
           </Card>
 
@@ -309,23 +320,31 @@ export default function SendKarmaPage() {
               <div className="text-2xl font-bold text-purple-600">
                 {dailyLimitInfo.percentage_used?.toFixed(0) || 0}%
               </div>
-              <Progress value={dailyLimitInfo.percentage_used || 0} className="mt-2" />
+              <Progress
+                value={dailyLimitInfo.percentage_used || 0}
+                className="mt-2"
+              />
               <p className="text-xs text-muted-foreground mt-1">
-                {dailyLimitInfo.remaining_limit} / {dailyLimitInfo.daily_limit} remaining today
+                {dailyLimitInfo.remaining_limit} / {dailyLimitInfo.daily_limit}{' '}
+                remaining today
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Team Size</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Eligible Recipients
+              </CardTitle>
               <User className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
                 {members.length}
               </div>
-              <p className="text-xs text-muted-foreground">Active members</p>
+              <p className="text-xs text-muted-foreground">
+                People you can send to
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -336,7 +355,8 @@ export default function SendKarmaPage() {
         <CardHeader>
           <CardTitle>{CURRENCY_PATTERNS.SEND_KARMA(currencyName)}</CardTitle>
           <CardDescription>
-            Choose a teammate, amount, and reason to recognize their contribution
+            Choose a teammate, amount, and reason to recognize their
+            contribution
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -358,7 +378,9 @@ export default function SendKarmaPage() {
                           </span>
                         </div>
                         <div className="text-left">
-                          <div className="font-medium text-left">{member.full_name || member.email}</div>
+                          <div className="font-medium text-left">
+                            {member.full_name || member.email}
+                          </div>
                           <div className="text-sm text-gray-500 capitalize text-left">
                             {member.role.replace('_', ' ')}
                             {member.department && ` • ${member.department}`}
@@ -373,8 +395,10 @@ export default function SendKarmaPage() {
                 <div className="flex items-start gap-2 mt-2 text-sm text-muted-foreground">
                   <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <p>
-                    You can send {currencyName} to teammates in other departments. 
-                    {currentProfile.department && ` You're in ${currentProfile.department}.`}
+                    You can send {currencyName} to teammates in other
+                    departments.
+                    {currentProfile.department &&
+                      ` You're in ${currentProfile.department}.`}
                   </p>
                 </div>
               )}
@@ -394,7 +418,11 @@ export default function SendKarmaPage() {
                 required
               />
               <p className="text-sm text-gray-500 mt-1">
-                Available: {formatCurrencyAmount(balanceInfo?.giving_balance || 0, currencyName)}
+                Available:{' '}
+                {formatCurrencyAmount(
+                  balanceInfo?.giving_balance || 0,
+                  currencyName
+                )}
               </p>
             </div>
 
@@ -403,7 +431,9 @@ export default function SendKarmaPage() {
               <Label htmlFor="reason">Reason *</Label>
               <Select value={selectedReason} onValueChange={setSelectedReason}>
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder={`Why are you sending ${currencyName}?`} />
+                  <SelectValue
+                    placeholder={`Why are you sending ${currencyName}?`}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {PREDEFINED_REASONS.map((reason) => (
@@ -446,9 +476,11 @@ export default function SendKarmaPage() {
                     <Info className="h-4 w-4" />
                     <AlertDescription>
                       <ul className="list-disc list-inside space-y-1">
-                        {validation.warnings.map((warning: string, index: number) => (
-                          <li key={index}>{warning}</li>
-                        ))}
+                        {validation.warnings.map(
+                          (warning: string, index: number) => (
+                            <li key={index}>{warning}</li>
+                          )
+                        )}
                       </ul>
                     </AlertDescription>
                   </Alert>
@@ -459,7 +491,11 @@ export default function SendKarmaPage() {
             {/* Submit Button */}
             <Button
               type="submit"
-              disabled={sending || !validation?.valid || (!selectedReason && !customReason.trim())}
+              disabled={
+                sending ||
+                !validation?.valid ||
+                (!selectedReason && !customReason.trim())
+              }
               className="w-full md:w-auto"
               size="lg"
             >
@@ -489,16 +525,21 @@ export default function SendKarmaPage() {
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
                 <span className="text-white text-lg font-medium">
-                  {getInitials(getSelectedMemberInfo()?.full_name || null, getSelectedMemberInfo()?.email || '')}
+                  {getInitials(
+                    getSelectedMemberInfo()?.full_name || null,
+                    getSelectedMemberInfo()?.email || ''
+                  )}
                 </span>
               </div>
               <div className="flex-1">
                 <div className="font-medium text-lg">
-                  {getSelectedMemberInfo()?.full_name || getSelectedMemberInfo()?.email}
+                  {getSelectedMemberInfo()?.full_name ||
+                    getSelectedMemberInfo()?.email}
                 </div>
                 <div className="text-gray-500 capitalize text-sm">
                   {getSelectedMemberInfo()?.role.replace('_', ' ')}
-                  {getSelectedMemberInfo()?.department && ` • ${getSelectedMemberInfo()?.department}`}
+                  {getSelectedMemberInfo()?.department &&
+                    ` • ${getSelectedMemberInfo()?.department}`}
                 </div>
               </div>
               {amount && (
@@ -510,15 +551,17 @@ export default function SendKarmaPage() {
                 </div>
               )}
             </div>
-            {(selectedReason && selectedReason !== 'other') && (
+            {selectedReason && selectedReason !== 'other' && (
               <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                 <div className="text-sm font-medium text-gray-700">Reason:</div>
                 <div className="text-gray-600">{selectedReason}</div>
               </div>
             )}
-            {(selectedReason === 'other' && customReason.trim()) && (
+            {selectedReason === 'other' && customReason.trim() && (
               <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm font-medium text-gray-700">Custom reason:</div>
+                <div className="text-sm font-medium text-gray-700">
+                  Custom reason:
+                </div>
                 <div className="text-gray-600">{customReason}</div>
               </div>
             )}

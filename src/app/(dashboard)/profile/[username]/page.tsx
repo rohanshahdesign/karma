@@ -79,19 +79,14 @@ export default function UserProfilePage() {
       setLoading(true);
       setError(null);
 
-      // Check if we're viewing our own profile to avoid a fetch
+      // Check if we're viewing our own profile - optimize by checking ID first
       let profileToView: Profile | null = null;
       
-      const isViewingSelf = 
-        contextProfile.username === username || 
-        contextProfile.email.split('@')[0] === username ||
-        contextProfile.id === username; // Handle ID lookup if needed
+      const isViewingSelf = contextProfile.id === username || contextProfile.username === username;
 
       if (isViewingSelf) {
-        console.log('Viewing own profile from context');
         profileToView = contextProfile;
       } else {
-        console.log('Fetching other profile:', username);
         // Fetch other user's profile
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {

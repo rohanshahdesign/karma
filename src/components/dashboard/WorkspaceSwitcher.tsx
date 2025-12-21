@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useAppData, type UserWorkspace } from '@/contexts/AppDataProvider';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -16,62 +16,36 @@ import { Button } from '@/components/ui/button';
 import { ChevronDown, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface Workspace {
-  workspace_id: string;
-  workspace_name: string;
-  workspace_slug: string;
-  logo_url: string | null;
-  user_role: string;
-}
-
 interface WorkspaceSwitcherProps {
   currentWorkspaceId?: string;
   onWorkspaceChange?: () => void;
+  collapsed?: boolean;
 }
 
 export function WorkspaceSwitcher({
   currentWorkspaceId,
   onWorkspaceChange,
+  collapsed = false,
 }: WorkspaceSwitcherProps) {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { userWorkspaces, isLoading: contextLoading } = useAppData();
+  const [currentWorkspace, setCurrentWorkspace] = useState<UserWorkspace | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
 
-  // Load user's workspaces
+  // Update current workspace when contextual workspaces change
   useEffect(() => {
-    const loadWorkspaces = async () => {
-      try {
-        setLoading(true);
-        
-        // Call RPC to get all user workspaces
-        const { data, error } = await supabase.rpc('get_user_workspaces');
-        
-        if (error) throw error;
-        
-        const workspaceList = (data || []) as Workspace[];
-        setWorkspaces(workspaceList);
-
-        // Set current workspace (prioritize passed currentWorkspaceId or use super_admin workspace)
-        if (currentWorkspaceId) {
-          const found = workspaceList.find(w => w.workspace_id === currentWorkspaceId);
-          if (found) setCurrentWorkspace(found);
-        } else {
-          // Default to first super_admin workspace, or first workspace
-          const superAdminWorkspace = workspaceList.find(w => w.user_role === 'super_admin');
-          setCurrentWorkspace(superAdminWorkspace || workspaceList[0] || null);
-        }
-      } catch (err) {
-        console.error('Error loading workspaces:', err);
-        toast.error('Failed to load workspaces');
-      } finally {
-        setLoading(false);
+    if (userWorkspaces.length > 0) {
+      // Set current workspace (prioritize passed currentWorkspaceId or use super_admin workspace)
+      if (currentWorkspaceId) {
+        const found = userWorkspaces.find((w: UserWorkspace) => w.workspace_id === currentWorkspaceId);
+        if (found) setCurrentWorkspace(found);
+      } else {
+        // Default to first super_admin workspace, or first workspace
+        const superAdminWorkspace = userWorkspaces.find((w: UserWorkspace) => w.user_role === 'super_admin');
+        setCurrentWorkspace(superAdminWorkspace || userWorkspaces[0] || null);
       }
-    };
-
-    loadWorkspaces();
-  }, [currentWorkspaceId]);
+    }
+  }, [userWorkspaces, currentWorkspaceId]);
 
   const handleWorkspaceSwitch = async (workspaceId: string) => {
     try {
@@ -83,18 +57,18 @@ export function WorkspaceSwitcher({
       if (error) throw error;
 
       // Update local state
-      const selected = workspaces.find(w => w.workspace_id === workspaceId);
+      const selected = userWorkspaces.find((w: UserWorkspace) => w.workspace_id === workspaceId);
       if (selected) {
         setCurrentWorkspace(selected);
         setIsOpen(false);
         
-        // Trigger refresh
+        // Trigger refresh via callback
         if (onWorkspaceChange) {
           onWorkspaceChange();
         }
         
-        // Refresh the page to load new workspace data
-        window.location.reload();
+        // Reload the current page without full refresh - allows Next.js to handle routing
+        router.refresh();
       }
     } catch (err) {
       console.error('Error switching workspace:', err);
@@ -107,7 +81,7 @@ export function WorkspaceSwitcher({
     router.push('/workspaces');
   };
 
-  if (loading || !currentWorkspace) {
+  if (contextLoading || !currentWorkspace) {
     return (
       <Button
         variant="ghost"
@@ -134,9 +108,9 @@ export function WorkspaceSwitcher({
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <button
-          className="w-full flex items-center gap-2 px-3 py-2 h-9 rounded-md hover:bg-gray-100 transition-colors cursor-pointer border border-transparent hover:border-gray-300"
+          className={`flex items-center gap-2 h-9 rounded-md hover:bg-gray-100 transition-colors cursor-pointer border border-transparent hover:border-gray-300 ${collapsed ? 'justify-center px-2' : 'w-full px-3 py-2'}`}
         >
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className={`flex items-center gap-2 ${collapsed ? '' : 'flex-1 min-w-0'}`}>
             <Avatar className="h-7 w-7 flex-shrink-0">
               <AvatarImage
                 src={currentWorkspace.logo_url || undefined}
@@ -146,13 +120,17 @@ export function WorkspaceSwitcher({
                 {getInitials(currentWorkspace.workspace_name)}
               </AvatarFallback>
             </Avatar>
-            <div className="flex flex-col items-start min-w-0 flex-1">
-              <span className="text-sm font-semibold truncate">
-                {currentWorkspace.workspace_name}
-              </span>
-            </div>
+            {!collapsed && (
+              <div className="flex flex-col items-start min-w-0 flex-1">
+                <span className="text-sm font-semibold truncate">
+                  {currentWorkspace.workspace_name}
+                </span>
+              </div>
+            )}
           </div>
-          <ChevronDown className={`h-4 w-4 opacity-50 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          {!collapsed && (
+            <ChevronDown className={`h-4 w-4 opacity-50 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          )}
         </button>
       </DropdownMenuTrigger>
 
@@ -164,7 +142,7 @@ export function WorkspaceSwitcher({
 
         {/* List all workspaces */}
         <div className="max-h-64 overflow-y-auto">
-          {workspaces.map(workspace => (
+          {userWorkspaces.map((workspace: UserWorkspace) => (
             <DropdownMenuItem
               key={workspace.workspace_id}
               onClick={() => handleWorkspaceSwitch(workspace.workspace_id)}

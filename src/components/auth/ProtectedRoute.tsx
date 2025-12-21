@@ -16,7 +16,7 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({
   children,
   requiredRoles = ['employee', 'admin', 'super_admin'],
-  fallbackPath = '/onboarding',
+  fallbackPath = '/login',
   loadingComponent = (
     <div className="min-h-screen flex items-center justify-center">
       Loading...
@@ -31,9 +31,9 @@ export default function ProtectedRoute({
     // Wait for initial load
     if (isLoading) return;
 
-    // Not authenticated or no profile
+    // Not authenticated or no profile - redirect to login
     if (!isAuthenticated || !profile) {
-      router.replace(fallbackPath);
+      router.replace('/login');
       return;
     }
 
