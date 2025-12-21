@@ -51,6 +51,19 @@ function JoinWorkspaceForm() {
     profileImagePath: null,
   });
 
+  // Check authentication on mount and redirect if not signed in
+  useEffect(() => {
+    const checkAuth = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace('/login');
+      }
+    };
+    void checkAuth();
+  }, [router]);
+
   const validateInviteCode = useCallback(async (invCode: string) => {
     console.log('Validating invite code:', invCode);
     
@@ -58,22 +71,12 @@ function JoinWorkspaceForm() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not signed in');
-
-    console.log('User authenticated:', { userId: user.id, email: user.email });
-
-    // Check if user already has a profile
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('auth_user_id', user.id)
-      .maybeSingle();
-      
-    if (existingProfile) {
-      console.log('User already has profile, redirecting to home');
-      router.push('/home');
+    if (!user) {
+      router.replace('/login');
       return;
     }
+
+    console.log('User authenticated:', { userId: user.id, email: user.email });
 
     // Validate invitation code using server-side endpoint (bypasses RLS)
     const {
@@ -105,6 +108,22 @@ function JoinWorkspaceForm() {
 
     // Extract workspace_id from result
     const wsId = result?.data?.workspace_id;
+    
+    // Check if user already has a profile in THIS specific workspace
+    if (wsId) {
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('auth_user_id', user.id)
+        .eq('workspace_id', wsId)
+        .maybeSingle();
+        
+      if (existingProfile) {
+        console.log('User already has profile in this workspace, redirecting to home');
+        router.push('/home');
+        return;
+      }
+    }
     if (wsId) {
       // setWorkspaceId(wsId);
       
@@ -185,6 +204,15 @@ function JoinWorkspaceForm() {
   useEffect(() => {
     if (!token) return;
     const joinByToken = async () => {
+      // Check authentication first
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace('/login');
+        return;
+      }
+      
       setLoading(true);
       setError(null);
       try {
@@ -211,10 +239,20 @@ function JoinWorkspaceForm() {
       }
     };
     void joinByToken();
-  }, [token, validateInviteCode]);
+  }, [token, validateInviteCode, router]);
 
   const onSubmitInviteCode = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check authentication before proceeding
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     try {
