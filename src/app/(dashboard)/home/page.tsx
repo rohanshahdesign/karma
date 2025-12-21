@@ -29,20 +29,24 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { UserAvatar, getUserDisplayName } from '@/components/ui/user-avatar';
+import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  Send,
-  ArrowUpRight,
-  ArrowDownLeft,
-  MessageSquare,
-  Calendar,
-  TrendingUp,
-  Users,
-} from 'lucide-react';
+  SentIcon,
+  ArrowUpRight01Icon,
+  ArrowDownLeft01Icon,
+  Message01Icon,
+  Calendar03Icon,
+  Analytics02Icon,
+  UserMultipleIcon,
+} from '@hugeicons/core-free-icons';
 import { EmployeeBalance } from '@/components/dashboard/EmployeeBalance';
 import { ActionButtons } from '@/components/dashboard/ActionButtons';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { ActivityChart } from '@/components/dashboard/ActivityChart';
-import { TopContributors } from '@/components/dashboard/TopContributors';
+import {
+  TopContributors,
+  type DateFilter,
+} from '@/components/dashboard/TopContributors';
 
 interface ChartDataPoint {
   date: string;
@@ -78,6 +82,8 @@ export default function DashboardHomePage() {
   } | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [topContributors, setTopContributors] = useState<Contributor[]>([]);
+  const [topContributorsDateFilter, setTopContributorsDateFilter] =
+    useState<DateFilter>('30days');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -307,7 +313,20 @@ export default function DashboardHomePage() {
             .eq('active', true);
 
           if (profiles && profiles.length > 0) {
-            const { data: receivedTransactions } = await supabase
+            // Calculate date filter
+            let dateFilter: { gte?: string } | undefined;
+            if (topContributorsDateFilter === '7days') {
+              const sevenDaysAgo = new Date();
+              sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+              dateFilter = { gte: sevenDaysAgo.toISOString() };
+            } else if (topContributorsDateFilter === '30days') {
+              const thirtyDaysAgo = new Date();
+              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+              dateFilter = { gte: thirtyDaysAgo.toISOString() };
+            }
+            // For 'all', dateFilter remains undefined
+
+            let query = supabase
               .from('transactions')
               .select('receiver_profile_id, amount')
               .eq('workspace_id', currentProfile.workspace_id)
@@ -315,6 +334,12 @@ export default function DashboardHomePage() {
                 'receiver_profile_id',
                 profiles.map((p) => p.id)
               );
+
+            if (dateFilter?.gte) {
+              query = query.gte('created_at', dateFilter.gte);
+            }
+
+            const { data: receivedTransactions } = await query;
 
             const contributorMap = new Map<string, number>();
             receivedTransactions?.forEach((tx) => {
@@ -351,7 +376,7 @@ export default function DashboardHomePage() {
     } finally {
       setLoading(false);
     }
-  }, [currentProfile, isUserAdmin]);
+  }, [currentProfile, isUserAdmin, topContributorsDateFilter]);
 
   useEffect(() => {
     if (currentProfile) {
@@ -472,9 +497,17 @@ export default function DashboardHomePage() {
                           }`}
                         >
                           {isSent ? (
-                            <ArrowUpRight className="h-2.5 w-2.5 text-white" />
+                            <HugeiconsIcon
+                              icon={ArrowUpRight01Icon}
+                              size={10}
+                              color="currentColor"
+                            />
                           ) : (
-                            <ArrowDownLeft className="h-2.5 w-2.5 text-white" />
+                            <HugeiconsIcon
+                              icon={ArrowDownLeft01Icon}
+                              size={10}
+                              color="currentColor"
+                            />
                           )}
                         </div>
                       </div>
@@ -505,7 +538,11 @@ export default function DashboardHomePage() {
               </div>
             ) : (
               <div className="text-center py-6">
-                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <HugeiconsIcon
+                  icon={Message01Icon}
+                  size={48}
+                  className="text-gray-400 mx-auto mb-4"
+                />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   No transactions yet
                 </h3>
@@ -514,7 +551,7 @@ export default function DashboardHomePage() {
                 </p>
                 <Button asChild className="font-medium">
                   <Link href="/send">
-                    <Send className="mr-2 h-4 w-4" />
+                    <HugeiconsIcon icon={SentIcon} size={16} className="mr-2" />
                     Send Your First{' '}
                     {currencyName.charAt(0).toUpperCase() +
                       currencyName.slice(1)}
@@ -548,7 +585,7 @@ export default function DashboardHomePage() {
             title={`${currencyName} Sent`}
             subtitle="This month"
             value={userStats.total_sent}
-            icon={Send}
+            icon={SentIcon}
             iconColor="text-blue-600"
             valueColor="text-blue-600"
           />
@@ -556,25 +593,17 @@ export default function DashboardHomePage() {
             title={`${currencyName} Received`}
             subtitle="This month"
             value={userStats.total_received}
-            icon={TrendingUp}
+            icon={Analytics02Icon}
             iconColor="text-green-600"
             valueColor="text-green-600"
           />
           {workspaceStats && (
             <>
               <KPICard
-                title="Active Users"
-                subtitle="This month"
-                value={workspaceStats.active_members_this_month}
-                target={workspaceStats.total_members}
-                progress={
-                  workspaceStats.total_members > 0
-                    ? (workspaceStats.active_members_this_month /
-                        workspaceStats.total_members) *
-                      100
-                    : 0
-                }
-                icon={Users}
+                title="Active Members"
+                subtitle="All time"
+                value={workspaceStats.total_members}
+                icon={UserMultipleIcon}
                 iconColor="text-purple-600"
                 valueColor="text-purple-600"
               />
@@ -582,7 +611,7 @@ export default function DashboardHomePage() {
                 title="Daily Usage"
                 value={`${dailyLimitInfo?.percentage_used?.toFixed(0) || 0}%`}
                 progress={dailyLimitInfo?.percentage_used || 0}
-                icon={Calendar}
+                icon={Calendar03Icon}
                 iconColor="text-orange-600"
                 valueColor="text-orange-600"
               />
@@ -603,17 +632,19 @@ export default function DashboardHomePage() {
           <TopContributors
             contributors={topContributors}
             currencyName={currencyName}
+            dateFilter={topContributorsDateFilter}
+            onDateFilterChange={setTopContributorsDateFilter}
           />
 
           {/* Engagement Metrics */}
           {workspaceStats && (
             <Card className="border-[#ebebeb]">
-              <CardHeader>
+              <CardHeader className="p-4">
                 <CardTitle className="text-lg font-medium">
                   Engagement Overview
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pl-3 pr-4 pb-4 pt-0 space-y-4">
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-normal text-gray-600">
@@ -692,9 +723,17 @@ export default function DashboardHomePage() {
                         }`}
                       >
                         {isSent ? (
-                          <ArrowUpRight className="h-2.5 w-2.5 text-white" />
+                          <HugeiconsIcon
+                            icon={ArrowUpRight01Icon}
+                            size={10}
+                            color="currentColor"
+                          />
                         ) : (
-                          <ArrowDownLeft className="h-2.5 w-2.5 text-white" />
+                          <HugeiconsIcon
+                            icon={ArrowDownLeft01Icon}
+                            size={10}
+                            color="currentColor"
+                          />
                         )}
                       </div>
                     </div>
@@ -722,7 +761,11 @@ export default function DashboardHomePage() {
             </div>
           ) : (
             <div className="text-center py-6">
-              <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <HugeiconsIcon
+                icon={Message01Icon}
+                size={48}
+                className="text-gray-400 mx-auto mb-4"
+              />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 No transactions yet
               </h3>
@@ -731,7 +774,7 @@ export default function DashboardHomePage() {
               </p>
               <Button asChild className="font-medium">
                 <Link href="/send">
-                  <Send className="mr-2 h-4 w-4" />
+                  <HugeiconsIcon icon={SentIcon} size={16} className="mr-2" />
                   Send Your First{' '}
                   {currencyName.charAt(0).toUpperCase() + currencyName.slice(1)}
                 </Link>
