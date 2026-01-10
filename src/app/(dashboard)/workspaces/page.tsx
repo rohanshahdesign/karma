@@ -56,7 +56,7 @@ import {
 import type { Database } from '@/lib/database.types';
 import { DepartmentManager } from '@/components/ui/department-manager';
 import { useUser } from '@/contexts/UserContext';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { useAppData } from '@/contexts/AppDataProvider';
 import CreateWorkspaceForm from '@/components/forms/CreateWorkspaceForm';
 import EditWorkspaceForm from '@/components/forms/EditWorkspaceForm';
 

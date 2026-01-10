@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 export default function LoginPage() {
   const router = useRouter();
 
-  // If already signed in, route based on onboarding status
+  // If already signed in, check workspaces and route accordingly
   useEffect(() => {
     const check = async () => {
       const {
@@ -15,38 +15,40 @@ export default function LoginPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
       
-      // For multi-workspace support: check if user has any profiles
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, workspace_id')
-        .eq('auth_user_id', user.id)
-        .limit(1);
+      // Check if user has any workspaces using get_user_workspaces RPC
+      const { data: workspaces, error } = await supabase.rpc('get_user_workspaces');
       
-      if (profiles && profiles.length > 0) {
-        // User has at least one workspace/profile, check for current workspace preference
+      if (error) {
+        console.error('Error fetching workspaces:', error);
+        return;
+      }
+      
+      if (workspaces && workspaces.length > 0) {
+        // User has 1 or more workspaces - redirect to /home
+        // The workspace context will handle setting the current workspace
+        const firstWorkspace = workspaces[0];
+        
+        // Set the first workspace as current if no preference exists
         const { data: preferences } = await supabase
           .from('user_preferences')
           .select('current_workspace_id')
           .eq('auth_user_id', user.id)
-          .single();
+          .maybeSingle();
         
-        // If user has a workspace preference, use it; otherwise use the first available workspace
-        if (preferences?.current_workspace_id) {
-          router.replace('/home');
-        } else {
-          // Set the first workspace as current
+        if (!preferences?.current_workspace_id) {
           await supabase
             .from('user_preferences')
             .upsert({
               auth_user_id: user.id,
-              current_workspace_id: profiles[0].workspace_id
+              current_workspace_id: firstWorkspace.workspace_id
             });
-          router.replace('/home');
         }
+        
+        router.replace('/home');
         return;
       }
       
-      // No profiles exist - user needs to complete onboarding
+      // No workspaces found - user needs to complete onboarding
       await supabase
         .from('pending_users')
         .upsert({ auth_user_id: user.id, email: user.email });

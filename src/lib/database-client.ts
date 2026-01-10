@@ -12,6 +12,7 @@ import {
   TransactionWithProfiles,
   ProfileStats,
   TransactionStats,
+  WorkspaceStats,
 } from './supabase-types';
 import { PaginatedResponse, QueryConfig } from './types';
 
@@ -417,6 +418,17 @@ export async function getProfileStatsClient(
 ): Promise<ProfileStats> {
   const { data, error } = await supabase.rpc('get_profile_stats', {
     p_profile_id: profileId,
+  });
+
+  if (error) handleClientDatabaseError(error);
+  return data;
+}
+
+export async function getWorkspaceStatsClient(
+  workspaceId: string
+): Promise<WorkspaceStats> {
+  const { data, error } = await supabase.rpc('get_workspace_stats', {
+    p_workspace_id: workspaceId,
   });
 
   if (error) handleClientDatabaseError(error);

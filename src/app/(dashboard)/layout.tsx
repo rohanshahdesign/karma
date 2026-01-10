@@ -2,7 +2,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { UserProvider } from '@/contexts/UserContext';
-import { WorkspaceProvider } from '@/contexts/WorkspaceContext';
+import { AppDataProvider } from '@/contexts/AppDataProvider';
 
 export default function DashboardLayout({
   children,
@@ -12,13 +12,13 @@ export default function DashboardLayout({
   return (
     <UserProvider>
       <ProtectedRoute>
-        <WorkspaceProvider>
+        <AppDataProvider>
           <CurrencyProvider>
             <AppLayout>
               {children}
             </AppLayout>
           </CurrencyProvider>
-        </WorkspaceProvider>
+        </AppDataProvider>
       </ProtectedRoute>
     </UserProvider>
   );
