@@ -4,16 +4,19 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useAvatarCache } from "@/contexts/AvatarCacheContext";
 
 interface UserAvatarProps {
   user: {
+    id?: string;
     username?: string | null;
     full_name?: string | null;
     avatar_url?: string | null;
     email: string;
     auth_user_id?: string;
+    has_custom_avatar?: boolean;
   };
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | undefined;
   className?: string;
   clickable?: boolean;
   onClick?: () => void;
@@ -25,12 +28,60 @@ const sizeClasses = {
   md: "h-8 w-8 text-sm", 
   lg: "h-10 w-10 text-base",
   xl: "h-12 w-12 text-lg",
+  "2xl": "h-16 w-16 text-xl",
+  "3xl": "h-20 w-20 text-2xl"
 };
 
-export function UserAvatar({ user, size = 'md', className, clickable = true, onClick, workspaceId }: UserAvatarProps) {
+export function UserAvatar({ user, size = 'md', className, clickable = true, onClick }: UserAvatarProps) {
   const router = useRouter();
-  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(user.avatar_url || null);
-  const [tried, setTried] = React.useState(false);
+  const { getAvatarUrl: fetchCachedAvatarUrl } = useAvatarCache();
+  
+  // Avatar resolution logic:
+  // 1. If user has custom avatar -> use avatar_url from database
+  // 2. If not -> use cached Google avatar URL
+  // 3. Otherwise -> use initials fallback
+  const getInitialAvatarUrl = React.useCallback((): string | null => {
+    if (!user.id) return null;
+    
+    // Check if user has a custom uploaded avatar
+    const hasCustomAvatar = user.has_custom_avatar ?? false;
+    
+    if (hasCustomAvatar && user.avatar_url) {
+      // Use the avatar_url stored in database (includes unique filename for cache busting)
+      return user.avatar_url;
+    }
+    
+    // For Google avatar, will fetch from cache/API
+    return null;
+  }, [user.id, user.has_custom_avatar, user.avatar_url]);
+
+  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(getInitialAvatarUrl());
+  
+  // Fetch and cache Google avatar URL if needed
+  React.useEffect(() => {
+    const loadCachedAvatarUrl = async () => {
+      if (!user.id) return;
+      
+      const hasCustomAvatar = user.has_custom_avatar ?? false;
+      
+      // Skip if already have a custom avatar URL
+      if (hasCustomAvatar && user.avatar_url) {
+        setAvatarUrl(user.avatar_url);
+        return;
+      }
+      
+      // Skip if already have a URL set
+      if (avatarUrl) return;
+      
+      // Fetch and cache the Google avatar URL (once per session)
+      const cachedUrl = await fetchCachedAvatarUrl(user.id, hasCustomAvatar);
+      if (cachedUrl) {
+        setAvatarUrl(cachedUrl);
+      }
+    };
+    
+    loadCachedAvatarUrl();
+  }, [user.id, user.has_custom_avatar, user.avatar_url, avatarUrl, fetchCachedAvatarUrl]);
   
   const getInitials = React.useCallback(() => {
     if (user.full_name) {

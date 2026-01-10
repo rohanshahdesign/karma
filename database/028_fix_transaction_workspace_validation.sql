@@ -149,3 +149,4 @@ $$;
 GRANT EXECUTE ON FUNCTION public.validate_and_create_transaction(uuid, integer, text, uuid) TO authenticated;
 
 
+
