@@ -435,6 +435,7 @@ export async function executeTransaction(
     p_receiver_profile_id: receiverProfileId,
     p_amount: amount,
     p_message: message,
+    p_sender_profile_id: senderProfileId,
   });
 
   if (error) throw error;
