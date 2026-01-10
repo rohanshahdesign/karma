@@ -318,7 +318,7 @@ function JoinWorkspaceForm() {
                       currentImageUrl={profileData.profileImageUrl || undefined}
                       onImageChange={(url, path) => {
                         handleProfileDataChange('profileImageUrl', url);
-                        handleProfileDataChange('profileImagePath', path);
+                        handleProfileDataChange('profileImagePath', path || null);
                       }}
                       disabled={loading}
                     />

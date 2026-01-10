@@ -42,7 +42,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
     // Get the profile for the current workspace
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('*, has_custom_avatar')
       .eq('auth_user_id', user.id)
       .eq('workspace_id', workspaceId)
       .maybeSingle();

@@ -194,12 +194,21 @@ export default function EditWorkspaceForm({
         <p className="text-sm text-gray-600">
           Upload a logo to brand your workspace (optional). If not provided, a default will be used.
         </p>
-        <ProfilePictureUpload
+        {/* <ProfilePictureUpload
           onImageChange={(imageUrl) => setLogoUrl(imageUrl)}
           currentImageUrl={logoUrl || undefined}
           size="lg"
           showRemove={true}
-        />
+          /> */
+          <ProfilePictureUpload
+          onImageChange={(imageUrl) => setLogoUrl(imageUrl)}
+          currentImageUrl={logoUrl || undefined}
+          size="lg"
+          showRemove={true}
+          isWorkspaceLogo={true}
+          workspaceId={workspaceId}
+          />
+        }
       </div>
 
       {error && (
