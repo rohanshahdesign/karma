@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useAppData, type UserWorkspace } from '@/contexts/AppDataProvider';
+import { useUser } from '@/contexts/UserContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,7 @@ export function WorkspaceSwitcher({
   collapsed = false,
 }: WorkspaceSwitcherProps) {
   const { userWorkspaces, isLoading: contextLoading } = useAppData();
+  const { refreshProfile } = useUser();
   const [currentWorkspace, setCurrentWorkspace] = useState<UserWorkspace | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
@@ -66,6 +68,10 @@ export function WorkspaceSwitcher({
         if (onWorkspaceChange) {
           onWorkspaceChange();
         }
+        
+        // Refresh user profile to update workspace_id in context
+        // This triggers AppDataProvider and dependent contexts to refetch workspace-specific data
+        await refreshProfile();
         
         // Reload the current page without full refresh - allows Next.js to handle routing
         router.refresh();

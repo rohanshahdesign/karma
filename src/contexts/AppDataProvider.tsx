@@ -179,7 +179,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         // 6. Get workspace members
         supabase
           .from('profiles')
-          .select('id, full_name, email, role, department, active')
+          .select('id, full_name, email, role, department, active, has_custom_avatar')
           .eq('workspace_id', currentProfile.workspace_id)
           .eq('active', true)
           .then((result) => {

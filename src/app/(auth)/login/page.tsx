@@ -57,18 +57,14 @@ export default function LoginPage() {
     void check();
   }, [router]);
   const handleGoogleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        scopes: 'email profile',
-        redirectTo:
-          process.env.NEXT_PUBLIC_REDIRECT_TO ??
-          (typeof window !== 'undefined'
-            ? `${window.location.origin}/auth/callback`
-            : undefined),
-      },
-    });
-  };
+  await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      scopes: 'email profile',
+      redirectTo: `${window.location.origin}/auth/callback`,
+    },
+  })
+}
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center max-w-md px-4">
