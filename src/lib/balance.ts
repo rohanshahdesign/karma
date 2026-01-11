@@ -417,6 +417,7 @@ export async function validateTransactionLegacy(
 
 /**
  * Execute a karma transaction (use the RPC function for consistency)
+ * Note: The RPC function handles all validation server-side, so we trust it here
  */
 export async function executeTransaction(
   senderProfileId: string,
@@ -424,13 +425,7 @@ export async function executeTransaction(
   amount: number,
   message?: string
 ): Promise<string> {
-  // Validate first using legacy function
-  const validation = await validateTransactionLegacy(senderProfileId, receiverProfileId, amount);
-  if (!validation.valid) {
-    throw new Error(validation.error || 'Validation failed');
-  }
-
-  // Use the existing RPC function which handles all the balance updates and limits
+  // Use the existing RPC function which handles all validation and balance updates
   const { data: transactionId, error } = await supabase.rpc('validate_and_create_transaction', {
     p_receiver_profile_id: receiverProfileId,
     p_amount: amount,

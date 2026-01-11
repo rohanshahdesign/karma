@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Sparkles } from "lucide-react"
+import Image from "next/image"
 
 export function Footer() {
   const footerLinks = {
@@ -15,9 +15,12 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-primary-foreground" />
-              </div>
+              <Image
+                src="/Claimsy logo-black.svg"
+                alt="Claimsy Logo"
+                width={32}
+                height={32}
+              />
               <span className="text-lg font-bold text-foreground">Claimsy</span>
             </Link>
             <p className="text-sm text-muted-foreground">Build a culture of recognition with karma.</p>

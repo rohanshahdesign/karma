@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
-  getProfileBalance,
-  getDailyLimitInfo,
   validateTransactionOptimized,
   executeTransaction,
   type BalanceInfo,
@@ -69,7 +67,7 @@ const PREDEFINED_REASONS = [
 export default function SendKarmaPage() {
   const { currencyName } = useCurrency();
   const { profile: currentProfile, isLoading: isProfileLoading } = useUser();
-  const { workspaceSettings, balanceInfo: contextBalance, dailyLimitInfo: contextDailyLimit, workspaceMembers } = useAppData();
+  const { workspaceSettings, balanceInfo: contextBalance, dailyLimitInfo: contextDailyLimit, workspaceMembers, refreshAppData } = useAppData();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [selectedMember, setSelectedMember] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
@@ -208,15 +206,8 @@ export default function SendKarmaPage() {
       setCustomReason('');
       setValidation(null);
 
-      // Refresh balance
-      if (currentProfile) {
-        const [balance, dailyLimit] = await Promise.all([
-          getProfileBalance(currentProfile.id),
-          getDailyLimitInfo(currentProfile.id),
-        ]);
-        setBalanceInfo(balance);
-        setDailyLimitInfo(dailyLimit);
-      }
+      // Refresh app data (balance, daily limit, etc.)
+      await refreshAppData();
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : `Failed to send ${currencyName}`
