@@ -18,6 +18,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Claimsy - Recognition made easy',
   description: 'Build a culture of recognition with Claimsy. Give karma, celebrate wins, and redeem rewards with simple workflows that drive engagement.',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({
